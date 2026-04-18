@@ -1,0 +1,208 @@
+{
+  "name": "ai-context-manager",
+  "displayName": "AI Context Manager v2.0",
+  "description": "Manage and reuse project context across ALL AI tools — ChatGPT, Claude, Gemini, Grok, Perplexity",
+  "version": "2.0.0",
+  "publisher": "ai-context-manager",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets"
+  ],
+  "keywords": [
+    "ai",
+    "context",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "productivity"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/ai-context-manager"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "aibridge.generate",
+        "title": "AIBridge: Generate Project Context",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "aibridge.copy",
+        "title": "AIBridge: Copy Context",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "aibridge.refresh",
+        "title": "AIBridge: Refresh Context",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aibridge.showDiff",
+        "title": "AIBridge: Show What Changed",
+        "icon": "$(diff)"
+      },
+      {
+        "command": "aibridge.generateWithSelected",
+        "title": "Generate with Selected Files",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "aibridge.refreshFilePicker",
+        "title": "Refresh File List",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aibridge.selectAll",
+        "title": "Select All Files",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "aibridge.deselectAll",
+        "title": "Deselect All Files",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "aibridge.toggleFile",
+        "title": "Toggle File Selection"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "aiContextManager.generate",
+        "key": "ctrl+shift+alt+g",
+        "mac": "cmd+shift+alt+g"
+      },
+      {
+        "command": "aiContextManager.copy",
+        "key": "ctrl+shift+alt+c",
+        "mac": "cmd+shift+alt+c"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aibridgeExplorer",
+          "title": "AIBridge",
+          "icon": "$(git-branch)"
+        }
+      ]
+    },
+    "views": {
+      "aibridgeExplorer": [
+        {
+          "id": "aibridgeFiles",
+          "name": "AIBridge Files",
+          "icon": "$(file-code)"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "aibridge.generateWithSelected",
+          "when": "view == aibridgeFiles",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aibridge.refreshFilePicker",
+          "when": "view == aibridgeFiles",
+          "group": "navigation@2"
+        },
+        {
+          "command": "aibridge.selectAll",
+          "when": "view == aibridgeFiles",
+          "group": "navigation@3"
+        },
+        {
+          "command": "aibridge.deselectAll",
+          "when": "view == aibridgeFiles",
+          "group": "navigation@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AI Context Manager",
+      "properties": {
+        "aiContextManager.ignoredFolders": {
+          "type": "array",
+          "default": [
+            "node_modules",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+            "out",
+            "coverage",
+            ".cache",
+            ".vscode",
+            "__pycache__",
+            ".pytest_cache",
+            "venv",
+            ".env"
+          ],
+          "description": "Folders to skip during workspace scanning"
+        },
+        "aiContextManager.maxDepth": {
+          "type": "number",
+          "default": 4,
+          "description": "Maximum folder depth for tree structure"
+        },
+        "aiContextManager.outputFileName": {
+          "type": "string",
+          "default": "project.ai.md",
+          "description": "Name of the generated context file"
+        },
+        "aiContextManager.autoOpenAfterGenerate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open the file in editor after generation"
+        },
+        "aiContextManager.autoRefreshOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-regenerate context on every file save"
+        },
+        "aiContextManager.includeGitHistory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include recent git commits in context"
+        },
+        "aiContextManager.includeEnvKeys": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include environment variable keys (never values)"
+        },
+        "aiContextManager.includeScripts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include npm scripts from package.json"
+        },
+        "aiContextManager.gitLogCount": {
+          "type": "number",
+          "default": 10,
+          "description": "Number of recent git commits to include"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.39",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}
