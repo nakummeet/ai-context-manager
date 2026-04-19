@@ -6,6 +6,8 @@ import { showDiff } from './commands/showDiff';
 import { FilePickerProvider, FileItem } from './providers/filePickerProvider';
 import { createStatusBar } from './statusBar';
 import { registerFileWatcher, disposeFileWatcher } from './utils/fileWatcher';
+import { openAIBridgePanel } from './ui/webviewPanel';
+import { SidebarPanelProvider } from './ui/SidebarPanelProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
   console.log('AIBridge v2.0 activated.');
@@ -15,6 +17,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const picker = new FilePickerProvider(rootPath);
 
+  const provider = new SidebarPanelProvider(context);
+
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'aibridgeSidebar',
+      provider
+    )
+  );
+
+  // 🌳 Tree View
   context.subscriptions.push(
     vscode.window.createTreeView('aibridgeFiles', {
       treeDataProvider: picker,
@@ -22,45 +34,58 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // ⚡ BASIC
   context.subscriptions.push(
-    vscode.commands.registerCommand('aibridge.generate', async () => {
-      await generateContext([]);
+    vscode.commands.registerCommand('aibridge.generateBasic', async () => {
+      await generateContext([], 'basic');
     })
   );
 
+  // 🌳 TREE
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aibridge.generateTree', async () => {
+      await generateContext([], 'tree');
+    })
+  );
+
+  // 📄 FULL (requires selection)
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aibridge.generateFull', async () => {
+      const files = picker.getSelected();
+
+      if (files.length === 0) {
+        vscode.window.showWarningMessage(
+          'AIBridge: Select files for Full mode.'
+        );
+        return;
+      }
+
+      await generateContext(files, 'full');
+    })
+  );
+
+  // 📋 Copy
   context.subscriptions.push(
     vscode.commands.registerCommand('aibridge.copy', async () => {
       await copyContext();
     })
   );
 
+  // 🔄 Refresh
   context.subscriptions.push(
     vscode.commands.registerCommand('aibridge.refresh', async () => {
       await refreshContext();
     })
   );
 
+  // 🔍 Diff
   context.subscriptions.push(
     vscode.commands.registerCommand('aibridge.showDiff', async () => {
       await showDiff();
     })
   );
 
-  context.subscriptions.push(
-    vscode.commands.registerCommand('aibridge.generateWithSelected', async () => {
-      const files = picker.getSelected();
-      if (files.length === 0) {
-        const answer = await vscode.window.showInformationMessage(
-          'AIBridge: No files selected. Generate without file contents?',
-          'Generate Anyway',
-          'Cancel'
-        );
-        if (answer !== 'Generate Anyway') return;
-      }
-      await generateContext(files);
-    })
-  );
-
+  // 📁 File selection
   context.subscriptions.push(
     vscode.commands.registerCommand('aibridge.toggleFile', (item: FileItem) => {
       picker.toggle(item);
@@ -86,28 +111,39 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // 🚀 Webview Panel
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aibridge.openPanel', () => {
+      openAIBridgePanel(context);
+    })
+  );
+
+  // 👀 File watcher
   registerFileWatcher(context, statusBar, async () => {
     await refreshContext();
   });
 
+  // 🔁 Workspace change
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       picker.refresh();
     })
   );
 
+  // 👋 Welcome message (updated)
   const shown = context.globalState.get<boolean>('aibridge.welcome');
   if (!shown) {
     vscode.window
       .showInformationMessage(
-        '👋 AIBridge is ready! Press Ctrl+Shift+Alt+G to generate your first context.',
-        'Generate Now'
+        '👋 AIBridge is ready! Use sidebar buttons or open panel.',
+        'Open Panel'
       )
       .then(answer => {
-        if (answer === 'Generate Now') {
-          vscode.commands.executeCommand('aibridge.generate');
+        if (answer === 'Open Panel') {
+          vscode.commands.executeCommand('aibridge.openPanel');
         }
       });
+
     context.globalState.update('aibridge.welcome', true);
   }
 }

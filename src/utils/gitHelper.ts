@@ -1,9 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
 import * as vscode from 'vscode';
+import { promisify } from 'util';
 
-/** A single parsed git commit entry */
+const execAsync = promisify(exec);
+
 export interface GitCommit {
   hash: string;
   author: string;
@@ -11,107 +13,115 @@ export interface GitCommit {
   message: string;
 }
 
-/**
- * Check whether a Git repository exists at the given path.
- * @param rootPath - Workspace root path
- */
+/** Check if git repo exists */
 export function hasGitRepo(rootPath: string): boolean {
   return fs.existsSync(path.join(rootPath, '.git'));
 }
 
-/**
- * Read the last N git commits from the repository.
- * Uses child_process.execSync with error handling.
- * @param rootPath - Workspace root path
- * @param count - Number of commits to retrieve (default 10)
- * @returns Array of GitCommit objects, or empty array on failure
- */
-export function getGitHistory(rootPath: string, count?: number): GitCommit[] {
-  if (!hasGitRepo(rootPath)) {
-    return [];
-  }
+/** Get git history (async + safe) */
+export async function getGitHistory(
+  rootPath: string,
+  count?: number
+): Promise<GitCommit[]> {
+
+  if (!hasGitRepo(rootPath)) return [];
 
   const config = vscode.workspace.getConfiguration('aiContextManager');
   const logCount = count ?? config.get<number>('gitLogCount') ?? 10;
 
   try {
-    const format = '%h | %an | %ar | %s';
-    const command = `git log --oneline --pretty=format:"${format}" -${logCount}`;
-    const output = execSync(command, {
+    const format = '%h|%an|%ar|%s';
+    const command = `git log --pretty=format:"${format}" -${logCount}`;
+
+    const { stdout } = await execAsync(command, {
       cwd: rootPath,
-      encoding: 'utf-8',
-      timeout: 5000,
-      stdio: ['pipe', 'pipe', 'pipe']
+      timeout: 5000
     });
 
-    const lines = output.trim().split('\n').filter(l => l.trim());
-    const commits: GitCommit[] = [];
+    return stdout
+      .split('\n')
+      .filter(Boolean)
+      .map(line => {
+        const [hash, author, relativeDate, ...msg] = line.split('|');
+        return {
+          hash: hash?.trim(),
+          author: author?.trim(),
+          relativeDate: relativeDate?.trim(),
+          message: msg.join('|').trim()
+        };
+      });
 
-    for (const line of lines) {
-      // Remove surrounding quotes that git sometimes adds
-      const clean = line.replace(/^"|"$/g, '').trim();
-      const parts = clean.split(' | ');
-      if (parts.length >= 4) {
-        commits.push({
-          hash: parts[0].trim(),
-          author: parts[1].trim(),
-          relativeDate: parts[2].trim(),
-          message: parts.slice(3).join(' | ').trim()
-        });
-      }
-    }
-
-    return commits;
   } catch {
-    // Git command failed — return empty array silently
     return [];
   }
 }
 
-/**
- * Get the current git branch name.
- * @param rootPath - Workspace root path
- * @returns Branch name or null if unavailable
- */
-export function getCurrentBranch(rootPath: string): string | null {
+/** Get current branch */
+export async function getCurrentBranch(rootPath: string): Promise<string | null> {
   if (!hasGitRepo(rootPath)) return null;
 
   try {
-    const output = execSync('git rev-parse --abbrev-ref HEAD', {
-      cwd: rootPath,
-      encoding: 'utf-8',
-      timeout: 3000,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    return output.trim();
+    const { stdout } = await execAsync(
+      'git rev-parse --abbrev-ref HEAD',
+      { cwd: rootPath }
+    );
+    return stdout.trim();
   } catch {
     return null;
   }
 }
 
-/**
- * Get a list of recently modified files from git status.
- * @param rootPath - Workspace root path
- * @returns Array of { status, file } objects
- */
-export function getGitStatus(rootPath: string): Array<{ status: string; file: string }> {
+/** Get changed files */
+export async function getGitStatus(
+  rootPath: string
+): Promise<Array<{ status: string; file: string }>> {
+
   if (!hasGitRepo(rootPath)) return [];
 
   try {
-    const output = execSync('git status --porcelain', {
-      cwd: rootPath,
-      encoding: 'utf-8',
-      timeout: 3000,
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
+    const { stdout } = await execAsync(
+      'git status --porcelain',
+      { cwd: rootPath }
+    );
 
-    return output.trim().split('\n')
-      .filter(l => l.trim())
+    return stdout
+      .split('\n')
+      .filter(Boolean)
       .map(line => ({
-        status: line.substring(0, 2).trim(),
-        file: line.substring(3).trim()
+        status: line.slice(0, 2).trim(),
+        file: line.slice(3).trim()
       }));
+
   } catch {
     return [];
   }
+}
+
+/** 🔥 NEW: Analyze commits for insights */
+export function analyzeGitCommits(commits: GitCommit[]): string[] {
+  const insights: string[] = [];
+
+  const messages = commits.map(c => c.message.toLowerCase());
+
+  const hasUI = messages.some(m =>
+    m.includes('ui') || m.includes('css') || m.includes('page')
+  );
+
+  const hasFeature = messages.some(m =>
+    m.includes('add') || m.includes('feature')
+  );
+
+  const hasFix = messages.some(m =>
+    m.includes('fix') || m.includes('bug')
+  );
+
+  if (hasUI) insights.push('Recent changes focus on UI/frontend');
+  if (hasFeature) insights.push('New features are being added');
+  if (hasFix) insights.push('Bug fixes and improvements detected');
+
+  if (insights.length === 0) {
+    insights.push('General development activity detected');
+  }
+
+  return insights;
 }

@@ -136,6 +136,25 @@ function detectFrom(deps: string[], mappings: DepMapping[]): string[] {
 function detectLanguages(rootPath: string, deps: string[]): string[] {
   const languages: string[] = [];
 
+  // 🔥 Static frontend detection
+try {
+  const files = fs.readdirSync(rootPath);
+
+  if (files.some(f => f.endsWith('.html'))) {
+    if (!languages.includes('HTML')) languages.push('HTML');
+  }
+
+  if (files.some(f => f.endsWith('.css'))) {
+    if (!languages.includes('CSS')) languages.push('CSS');
+  }
+
+  if (files.some(f => f.endsWith('.js'))) {
+    if (!languages.includes('JavaScript')) {
+      languages.push('JavaScript');
+    }
+  }
+} catch {}
+
   // TypeScript: tsconfig.json or typescript in deps
   if (
     fs.existsSync(path.join(rootPath, 'tsconfig.json')) ||
@@ -208,8 +227,12 @@ function detectDocker(rootPath: string): boolean {
 export function detectTechStack(rootPath: string): TechStack | null {
   const pkgPath = path.join(rootPath, 'package.json');
 
+  
+
   let allDeps: string[] = [];
   let packageData: Record<string, unknown> = {};
+
+  
 
   if (fs.existsSync(pkgPath)) {
     try {

@@ -6,25 +6,25 @@ import { FolderNode, renderTree } from './folderScanner';
 import { GitCommit } from './gitHelper';
 
 const BINARY_EXT = new Set([
-  '.png','.jpg','.jpeg','.gif','.webp','.ico','.bmp','.tiff','.avif',
-  '.pdf','.zip','.tar','.gz','.rar','.7z','.exe','.dll','.so','.dylib',
-  '.mp3','.mp4','.wav','.avi','.mov','.webm','.mkv','.ogg',
-  '.ttf','.woff','.woff2','.eot','.otf',
-  '.db','.sqlite','.sqlite3',
-  '.glb','.gltf','.fbx','.obj',
-  '.psd','.ai','.sketch','.fig',
-  '.class','.jar','.pyc','.o','.a',
-  '.bin','.dat','.iso','.svg',
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff', '.avif',
+  '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z', '.exe', '.dll', '.so', '.dylib',
+  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.webm', '.mkv', '.ogg',
+  '.ttf', '.woff', '.woff2', '.eot', '.otf',
+  '.db', '.sqlite', '.sqlite3',
+  '.glb', '.gltf', '.fbx', '.obj',
+  '.psd', '.ai', '.sketch', '.fig',
+  '.class', '.jar', '.pyc', '.o', '.a',
+  '.bin', '.dat', '.iso', '.svg',
 ]);
 
 const LOCK_FILES = new Set([
-  'package-lock.json','yarn.lock','pnpm-lock.yaml',
-  'Cargo.lock','poetry.lock','composer.lock','Gemfile.lock',
+  'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
+  'Cargo.lock', 'poetry.lock', 'composer.lock', 'Gemfile.lock',
 ]);
 
 const IGNORE_IN_TREE = new Set([
-  'aibridge.md','project.ai.md','.gitignore','.env',
-  'vercel.json','netlify.toml','.eslintrc.json','.prettierrc',
+  'aibridge.md', 'project.ai.md', '.gitignore', '.env',
+  'vercel.json', 'netlify.toml', '.eslintrc.json', '.prettierrc',
 ]);
 
 const MAX_FILE_SIZE_BYTES = 50 * 1024;
@@ -56,16 +56,16 @@ function hasBinaryContent(buffer: Buffer): boolean {
 
 function getLang(filePath: string): string {
   const map: Record<string, string> = {
-    '.ts':'typescript','.tsx':'tsx',
-    '.js':'javascript','.jsx':'jsx','.mjs':'javascript',
-    '.json':'json','.md':'markdown',
-    '.html':'html','.htm':'html',
-    '.css':'css','.scss':'scss','.sass':'sass','.less':'less',
-    '.py':'python','.go':'go','.rs':'rust',
-    '.java':'java','.rb':'ruby','.php':'php',
-    '.sh':'bash','.bash':'bash','.zsh':'bash',
-    '.yaml':'yaml','.yml':'yaml','.toml':'toml',
-    '.sql':'sql','.graphql':'graphql','.prisma':'prisma','.env':'bash',
+    '.ts': 'typescript', '.tsx': 'tsx',
+    '.js': 'javascript', '.jsx': 'jsx', '.mjs': 'javascript',
+    '.json': 'json', '.md': 'markdown',
+    '.html': 'html', '.htm': 'html',
+    '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less',
+    '.py': 'python', '.go': 'go', '.rs': 'rust',
+    '.java': 'java', '.rb': 'ruby', '.php': 'php',
+    '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash',
+    '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml',
+    '.sql': 'sql', '.graphql': 'graphql', '.prisma': 'prisma', '.env': 'bash',
   };
   const base = path.basename(filePath).toLowerCase();
   if (base === 'dockerfile') return 'dockerfile';
@@ -75,11 +75,11 @@ function getLang(filePath: string): string {
 
 function readSafe(fp: string): { content: string; error: string | null } {
   if (isBinaryOrLockFile(fp)) return { content: '', error: 'binary or lock file' };
-  if (isFileTooLarge(fp))     return { content: '', error: 'file too large (over 50KB)' };
+  if (isFileTooLarge(fp)) return { content: '', error: 'file too large (over 50KB)' };
   let buf: Buffer;
   try { buf = fs.readFileSync(fp); }
   catch { return { content: '', error: 'could not read file' }; }
-  if (hasBinaryContent(buf))  return { content: '', error: 'binary content detected' };
+  if (hasBinaryContent(buf)) return { content: '', error: 'binary content detected' };
   return { content: buf.toString('utf-8'), error: null };
 }
 
@@ -115,7 +115,7 @@ function detectDeps(fp: string): string[] {
       continue;
     }
 
-    if (['.js','.ts','.jsx','.tsx','.mjs'].includes(ext)) {
+    if (['.js', '.ts', '.jsx', '.tsx', '.mjs'].includes(ext)) {
       const imp = line.match(/(?:from|require)\s*\(?\s*['"]([^'"]+)['"]/);
       if (imp) {
         const val = imp[1];
@@ -124,7 +124,7 @@ function detectDeps(fp: string): string[] {
       }
     }
 
-    if (['.css','.scss','.sass'].includes(ext)) {
+    if (['.css', '.scss', '.sass'].includes(ext)) {
       const imp = line.match(/@import\s+['"]([^'"]+)['"]/);
       if (imp) deps.push(imp[1].replace(/^\.\.?\//, ''));
     }
@@ -200,57 +200,57 @@ function analyzeImportantFiles(
     role: string;
     why: (name: string) => string;
   }> = [
-    {
-      pattern: /controller/i,
-      role: 'Controller',
-      why: (n) => `Handles business logic for ${n.replace(/controller/i,'').replace(/\./,'')} operations`,
-    },
-    {
-      pattern: /middleware/i,
-      role: 'Middleware',
-      why: (n) => `Intercepts requests — ${n.includes('auth') ? 'verifies JWT tokens and protects routes' : n.includes('error') ? 'handles errors globally' : n.includes('role') ? 'enforces role-based access control' : 'validates or transforms requests'}`,
-    },
-    {
-      pattern: /model/i,
-      role: 'Model',
-      why: (n) => `Defines ${n.replace(/\.(js|ts)$/,'')} database schema and shape`,
-    },
-    {
-      pattern: /route/i,
-      role: 'Router',
-      why: (n) => `Maps HTTP endpoints to ${n.replace(/routes?\.(js|ts)$/,'').replace(/\./,'')} controller functions`,
-    },
-    {
-      pattern: /server\.(js|ts)$/i,
-      role: 'Entry Point',
-      why: () => 'App entry — initializes Express, loads middleware, connects DB, starts server',
-    },
-    {
-      pattern: /index\.(js|ts)$/i,
-      role: 'App Root',
-      why: () => 'Registers all routes and global middleware onto the Express app',
-    },
-    {
-      pattern: /db\.(js|ts)$/i,
-      role: 'Database',
-      why: () => 'Manages database connection — called once at startup',
-    },
-    {
-      pattern: /auth/i,
-      role: 'Auth',
-      why: (n) => `Core authentication — ${n.includes('controller') ? 'handles login/register/logout' : n.includes('middleware') ? 'protects private routes with JWT' : 'auth utilities'}`,
-    },
-    {
-      pattern: /token/i,
-      role: 'Utility',
-      why: () => 'Generates and signs JWT tokens for authenticated sessions',
-    },
-    {
-      pattern: /response|apiResponse/i,
-      role: 'Utility',
-      why: () => 'Standardizes all API responses — used by every controller',
-    },
-  ];
+      {
+        pattern: /controller/i,
+        role: 'Controller',
+        why: (n) => `Handles business logic for ${n.replace(/controller/i, '').replace(/\./, '')} operations`,
+      },
+      {
+        pattern: /middleware/i,
+        role: 'Middleware',
+        why: (n) => `Intercepts requests — ${n.includes('auth') ? 'verifies JWT tokens and protects routes' : n.includes('error') ? 'handles errors globally' : n.includes('role') ? 'enforces role-based access control' : 'validates or transforms requests'}`,
+      },
+      {
+        pattern: /model/i,
+        role: 'Model',
+        why: (n) => `Defines ${n.replace(/\.(js|ts)$/, '')} database schema and shape`,
+      },
+      {
+        pattern: /route/i,
+        role: 'Router',
+        why: (n) => `Maps HTTP endpoints to ${n.replace(/routes?\.(js|ts)$/, '').replace(/\./, '')} controller functions`,
+      },
+      {
+        pattern: /server\.(js|ts)$/i,
+        role: 'Entry Point',
+        why: () => 'App entry — initializes Express, loads middleware, connects DB, starts server',
+      },
+      {
+        pattern: /index\.(js|ts)$/i,
+        role: 'App Root',
+        why: () => 'Registers all routes and global middleware onto the Express app',
+      },
+      {
+        pattern: /db\.(js|ts)$/i,
+        role: 'Database',
+        why: () => 'Manages database connection — called once at startup',
+      },
+      {
+        pattern: /auth/i,
+        role: 'Auth',
+        why: (n) => `Core authentication — ${n.includes('controller') ? 'handles login/register/logout' : n.includes('middleware') ? 'protects private routes with JWT' : 'auth utilities'}`,
+      },
+      {
+        pattern: /token/i,
+        role: 'Utility',
+        why: () => 'Generates and signs JWT tokens for authenticated sessions',
+      },
+      {
+        pattern: /response|apiResponse/i,
+        role: 'Utility',
+        why: () => 'Standardizes all API responses — used by every controller',
+      },
+    ];
 
   for (const fp of selectedFiles) {
     const base = path.basename(fp);
@@ -296,49 +296,46 @@ function detectBusinessFlow(
   selectedFiles: string[],
   techStack: TechStack | null
 ): string {
-  const fileNames = selectedFiles.map(f =>
-    path.basename(f).toLowerCase()
-  );
 
-  const has = (keyword: string) =>
-    fileNames.some(f => f.includes(keyword));
+  const names = selectedFiles.map(f => path.basename(f).toLowerCase());
 
+  const has = (k: string) => names.some(f => f.includes(k));
+
+  // 🔥 Frontend static flow
+  if (techStack?.frontend.includes('Static Website')) {
+    const steps: string[] = [];
+
+    steps.push('User opens index.html');
+
+    if (has('page')) {
+      steps.push('Navigates between multiple pages');
+    }
+
+    if (has('.js') || has('script')) {
+      steps.push('JavaScript handles interactions and UI behavior');
+    }
+
+    if (has('.css') || has('style')) {
+      steps.push('CSS renders layout and styling');
+    }
+
+    return steps.join(' → ');
+  }
+
+  // 🔥 Backend flow (keep yours)
   const steps: string[] = [];
 
-  // Auth
   if (has('auth') || has('user')) steps.push('User registers / logs in');
-
-  // Browse
-  if (has('food') || has('product') || has('item')) {
-    steps.push('Browse available items');
-  } else if (has('restaurant') || has('store')) {
-    steps.push('Browse restaurants / stores');
-  }
-
-  // Cart
-  if (has('cart')) steps.push('Add items to cart');
-
-  // Order
+  if (has('product') || has('food')) steps.push('Browse items');
+  if (has('cart')) steps.push('Add to cart');
   if (has('order')) steps.push('Place order');
 
-  // Payment
-  if (techStack?.other.includes('Stripe') || has('payment')) {
-    steps.push('Process payment (Stripe)');
-  }
-
-  // Delivery / fulfillment
-  if (has('deliver') || has('fulfil')) steps.push('Order fulfilled');
-
   if (steps.length === 0) {
-    steps.push('Client sends request');
-    steps.push('Middleware validates');
-    steps.push('Controller processes');
-    steps.push('Response returned');
+    return 'Client sends request → Middleware validates → Controller processes → Response returned';
   }
 
   return steps.join(' → ');
 }
-
 // ── Detect dependency insights ────────────────────────────────────────────
 interface DepInsight {
   file: string;
@@ -469,8 +466,8 @@ function renderTreePretty(
       if (deps.length === 0) {
         lines.push(
           newPrefix +
-            (last ? '    ' : '│   ') +
-            '└── (no external dependencies)'
+          (last ? '    ' : '│   ') +
+          '└── (no external dependencies)'
         );
       } else {
         deps.forEach((dep, i) => {
@@ -545,7 +542,51 @@ export interface MarkdownInput {
   keyFiles: string[];
   gitCommits: GitCommit[];
   selectedFiles: string[];
+  treeFlat?: string[];
   mode: GenerateMode;
+}
+function generateSmartOverview(input: MarkdownInput): string[] {
+  const lines: string[] = [];
+
+  const ts = input.techStack;
+  const project = input.projectName;
+
+  const files = input.treeFlat ?? [];
+  const names = files.map(f => path.basename(f).toLowerCase());
+
+  const has = (k: string) => names.some(f => f.includes(k));
+
+  let desc = `**${project}**`;
+
+  // 🎯 Detect project type
+  if (ts?.frontend.includes('Static Website')) {
+    desc += ` is a static frontend website built using HTML, CSS, and JavaScript.`;
+
+    if (has('m2') || has('m3') || has('m4')) {
+      desc += ` It showcases BMW car models across multiple pages (M2, M3, M4).`;
+    } else if (has('page')) {
+      desc += ` It contains multiple UI pages for navigation and content display.`;
+    }
+
+  } else if (ts?.backend.length) {
+    desc += ` is a backend API built with ${ts.backend.join(', ')}`;
+
+    if (ts.database.length) {
+      desc += ` and ${ts.database.join(', ')}`;
+    }
+
+    desc += `.`;
+
+  } else if (ts?.frontend.length) {
+    desc += ` is a frontend application built with ${ts.frontend.join(', ')}.`;
+
+  } else {
+    desc += ` is a ${ts?.languages.join(', ') || 'software'} project.`;
+  }
+
+  lines.push(desc);
+
+  return lines;
 }
 
 export function buildMarkdown(input: MarkdownInput): string {
@@ -555,8 +596,8 @@ export function buildMarkdown(input: MarkdownInput): string {
 
   const modeLabel: Record<GenerateMode, string> = {
     basic: '⚡ Basic',
-    tree:  '🌳 Project Tree',
-    full:  '📄 Full Code',
+    tree: '🌳 Project Tree',
+    full: '📄 Full Code',
   };
 
   // ── Header ────────────────────────────────────────────────────────────────
@@ -567,19 +608,21 @@ export function buildMarkdown(input: MarkdownInput): string {
 
   // ── 1. PROJECT OVERVIEW ───────────────────────────────────────────────────
   lines.push('## 📋 Project Overview\n');
+  lines.push(...generateSmartOverview(input));
+  lines.push('');
 
   if (input.techStack) {
-    const isBackend  = input.techStack.backend.length > 0;
-    const hasMongo   = input.techStack.database.some(d => d.toLowerCase().includes('mongo'));
-    const hasPostgres= input.techStack.database.some(d => d.toLowerCase().includes('postgres'));
-    const hasStripe  = input.techStack.other.includes('Stripe');
-    const hasAuth    = input.techStack.other.includes('JWT');
+    const isBackend = input.techStack.backend.length > 0;
+    const hasMongo = input.techStack.database.some(d => d.toLowerCase().includes('mongo'));
+    const hasPostgres = input.techStack.database.some(d => d.toLowerCase().includes('postgres'));
+    const hasStripe = input.techStack.other.includes('Stripe');
+    const hasAuth = input.techStack.other.includes('JWT');
     const isFrontend = input.techStack.frontend.length > 0;
 
     let overview = `**${input.projectName}**`;
 
     if (isBackend && isFrontend) {
-      overview += ` is a full-stack application built with ${[...input.techStack.frontend, ...input.techStack.backend].slice(0,3).join(', ')}.`;
+      overview += ` is a full-stack application built with ${[...input.techStack.frontend, ...input.techStack.backend].slice(0, 3).join(', ')}.`;
     } else if (isBackend) {
       overview += ` is a backend REST API built with ${input.techStack.backend.join(', ')}`;
       if (input.techStack.database.length) {
@@ -623,14 +666,14 @@ export function buildMarkdown(input: MarkdownInput): string {
 
     const layers: Array<{ name: string; desc: string }> = [];
 
-    if (has('route'))      layers.push({ name: 'Routes',      desc: 'Define HTTP endpoints and map them to controller functions' });
+    if (has('route')) layers.push({ name: 'Routes', desc: 'Define HTTP endpoints and map them to controller functions' });
     if (has('controller')) layers.push({ name: 'Controllers', desc: 'Handle request logic — validate input, call models, return responses' });
-    if (has('middleware')) layers.push({ name: 'Middleware',  desc: 'Intercept requests — handle auth, roles, validation, errors' });
-    if (has('model'))      layers.push({ name: 'Models',      desc: 'Define database schemas and interact with the database' });
+    if (has('middleware')) layers.push({ name: 'Middleware', desc: 'Intercept requests — handle auth, roles, validation, errors' });
+    if (has('model')) layers.push({ name: 'Models', desc: 'Define database schemas and interact with the database' });
     if (has('util') || has('helper')) {
       layers.push({ name: 'Utils', desc: 'Shared helpers — token generation, response formatting, etc.' });
     }
-    if (has('config'))     layers.push({ name: 'Config',      desc: 'Database connection and app-level configuration' });
+    if (has('config')) layers.push({ name: 'Config', desc: 'Database connection and app-level configuration' });
 
     if (layers.length > 0) {
       layers.forEach(l => lines.push(`- **${l.name}** — ${l.desc}`));
@@ -710,12 +753,12 @@ export function buildMarkdown(input: MarkdownInput): string {
   if (input.techStack) {
     const ts = input.techStack;
     if (ts.languages.length) lines.push(`- **Language:** ${ts.languages.join(', ')}`);
-    if (ts.frontend.length)  lines.push(`- **Frontend:** ${ts.frontend.join(', ')}`);
-    if (ts.backend.length)   lines.push(`- **Backend:** ${ts.backend.join(', ')}`);
-    if (ts.database.length)  lines.push(`- **Database:** ${ts.database.join(', ')}`);
-    if (ts.testing.length)   lines.push(`- **Testing:** ${ts.testing.join(', ')}`);
-    if (ts.devTools.length)  lines.push(`- **Dev Tools:** ${ts.devTools.join(', ')}`);
-    if (ts.other.length)     lines.push(`- **Other:** ${ts.other.join(', ')}`);
+    if (ts.frontend.length) lines.push(`- **Frontend:** ${ts.frontend.join(', ')}`);
+    if (ts.backend.length) lines.push(`- **Backend:** ${ts.backend.join(', ')}`);
+    if (ts.database.length) lines.push(`- **Database:** ${ts.database.join(', ')}`);
+    if (ts.testing.length) lines.push(`- **Testing:** ${ts.testing.join(', ')}`);
+    if (ts.devTools.length) lines.push(`- **Dev Tools:** ${ts.devTools.join(', ')}`);
+    if (ts.other.length) lines.push(`- **Other:** ${ts.other.join(', ')}`);
   } else {
     lines.push('- **Language:** HTML, CSS, JavaScript');
   }
@@ -781,13 +824,22 @@ export function buildMarkdown(input: MarkdownInput): string {
 
   } else if (input.mode === 'tree') {
 
-    // Architecture tree + last 5 commits
+    // ✅ use ALL files from scan (NOT selectedFiles)
+    const allFiles = input.treeFlat ?? [];
+    // fallback if not present
+    const files = allFiles.length > 0
+      ? allFiles
+      : input.selectedFiles;
+
     const treeSection = buildArchitectureTree(
-      input.selectedFiles,
+      files,
       input.rootPath,
       input.gitCommits
     );
+
     lines.push(...treeSection);
+
+
 
   } else if (input.mode === 'full') {
 

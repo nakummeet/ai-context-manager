@@ -4,257 +4,88 @@ import * as path from 'path';
 import { scanWorkspace } from '../utils/folderScanner';
 import { getProjectName } from '../utils/techDetector';
 
-/** Output channel for diff results */
-let diffOutputChannel: vscode.OutputChannel | null = null;
+let channel: vscode.OutputChannel | null = null;
 
-/**
- * Get (or create) the dedicated output channel for diff results.
- */
-function getDiffChannel(): vscode.OutputChannel {
-  if (!diffOutputChannel) {
-    diffOutputChannel = vscode.window.createOutputChannel('AI Context Diff');
+function getChannel(): vscode.OutputChannel {
+  if (!channel) {
+    channel = vscode.window.createOutputChannel('AI Context Diff');
   }
-  return diffOutputChannel;
+  return channel;
 }
 
-/** Parse file paths listed in the project.ai.md folder structure */
-function parseFilesFromMarkdown(content: string): Set<string> {
-  const files = new Set<string>();
-  // Extract filenames from the tree (lines ending in a file pattern)
-  const lines = content.split('\n');
-  for (const line of lines) {
-    const match = line.match(/[├└]── (.+)$/);
-    if (match) {
-      const name = match[1].trim();
-      if (!name.endsWith('/')) {
-        files.add(name);
-      }
-    }
-  }
-  return files;
-}
-
-/** Parse dependencies from the tech stack section of project.ai.md */
-function parseDepsFromMarkdown(content: string): Set<string> {
-  const deps = new Set<string>();
-  const stackSection = content.match(/## 🛠 Tech Stack([\s\S]*?)(?=##|$)/);
-  if (!stackSection) return deps;
-  const lines = stackSection[1].split('\n');
-  for (const line of lines) {
-    const match = line.match(/- \*\*[^*]+\*\*: (.+)/);
-    if (match) {
-      match[1].split(',').forEach(t => deps.add(t.trim()));
-    }
-  }
-  return deps;
-}
-
-/** Read package.json dependencies as a comma-separated string list */
-function getCurrentDeps(rootPath: string): Set<string> {
-  const deps = new Set<string>();
-  const pkgPath = path.join(rootPath, 'package.json');
-  if (!fs.existsSync(pkgPath)) return deps;
-  try {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as Record<string, unknown>;
-    const allDeps = {
-      ...((pkg.dependencies as Record<string, string>) ?? {}),
-      ...((pkg.devDependencies as Record<string, string>) ?? {}),
-    };
-    Object.keys(allDeps).forEach(d => deps.add(d));
-  } catch {
-    // Parse error
-  }
-  return deps;
-}
-
-/**
- * Execute the "Show What Changed" command.
- * Compares the current workspace state to the last generated project.ai.md
- * and outputs a diff report to the "AI Context Diff" output channel.
- */
 export async function showDiff(): Promise<void> {
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders?.length) {
-    vscode.window.showErrorMessage(
-      'AI Context Manager: Please open a folder first.'
-    );
+  const ws = vscode.workspace.workspaceFolders;
+  if (!ws?.length) {
+    vscode.window.showErrorMessage('Open a project first');
     return;
   }
 
-  const rootPath = workspaceFolders[0].uri.fsPath;
+  const root = ws[0].uri.fsPath;
+
   const config = vscode.workspace.getConfiguration('aiContextManager');
-  const outputFileName = config.get<string>('outputFileName') ?? 'project.ai.md';
-  const outputFilePath = path.join(rootPath, outputFileName);
+  const fileName = config.get<string>('outputFileName') ?? 'project.ai.md';
+  const filePath = path.join(root, fileName);
 
-  if (!fs.existsSync(outputFilePath)) {
-    vscode.window.showWarningMessage(
-      `AI Context Manager: ${outputFileName} does not exist. Generate it first.`,
-      'Generate Now'
-    ).then(answer => {
-      if (answer === 'Generate Now') {
-        vscode.commands.executeCommand('aiContextManager.generate');
-      }
-    });
+  if (!fs.existsSync(filePath)) {
+    vscode.window.showWarningMessage('Generate context first');
     return;
   }
 
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: 'AI Context Manager: Calculating diff...',
-      cancellable: false,
-    },
-    async (progress) => {
-      progress.report({ increment: 20 });
+  const channel = getChannel();
+  channel.clear();
+  channel.show(true);
 
-      const channel = getDiffChannel();
-      channel.clear();
-      channel.show(true);
+  const oldContent = fs.readFileSync(filePath, 'utf-8');
 
-      const now = new Date().toLocaleString();
-      const projectName = getProjectName(rootPath);
-
-      channel.appendLine('═══════════════════════════════════════════════════════');
-      channel.appendLine(`  AI Context Diff — ${projectName}`);
-      channel.appendLine(`  Generated at: ${now}`);
-      channel.appendLine('═══════════════════════════════════════════════════════');
-      channel.appendLine('');
-
-      // ── Read the old markdown ───────────────────────────────────────────────
-      let oldContent: string;
-      try {
-        oldContent = fs.readFileSync(outputFilePath, 'utf-8');
-      } catch {
-        channel.appendLine('⚠️  Could not read project.ai.md for comparison.');
-        return;
-      }
-
-      // Get the generation date from the file
-      const genDateMatch = oldContent.match(/Generated by AI Context Manager on (.+)/);
-      if (genDateMatch) {
-        channel.appendLine(`📄 Last generated: ${genDateMatch[1]}`);
-        channel.appendLine('');
-      }
-
-      progress.report({ increment: 30 });
-
-      // ── Scan current workspace ──────────────────────────────────────────────
-      const currentScan = scanWorkspace(rootPath);
-      const currentFiles = new Set(
-        currentScan.allFiles.map(f => path.relative(rootPath, f).replace(/\\/g, '/'))
-      );
-
-      // ── Get old files from markdown ─────────────────────────────────────────
-      const oldFiles = parseFilesFromMarkdown(oldContent);
-
-      progress.report({ increment: 20 });
-
-      // ── Compute file changes ────────────────────────────────────────────────
-      const newFiles: string[] = [];
-      const deletedFiles: string[] = [];
-
-      for (const f of currentFiles) {
-        if (!oldFiles.has(path.basename(f))) {
-          newFiles.push(f);
-        }
-      }
-
-      for (const f of oldFiles) {
-        const stillExists = Array.from(currentFiles).some(
-          cf => path.basename(cf) === f
-        );
-        if (!stillExists) {
-          deletedFiles.push(f);
-        }
-      }
-
-      // ── Compute dependency changes ──────────────────────────────────────────
-      const currentDeps = getCurrentDeps(rootPath);
-      const oldDepsFromMd = parseDepsFromMarkdown(oldContent);
-
-      // These are rough comparisons — we compare tech labels vs dep names
-      // For a precise diff, we compare actual package.json deps
-
-      progress.report({ increment: 20 });
-
-      // ── Output the results ──────────────────────────────────────────────────
-      let hasChanges = false;
-
-      if (newFiles.length > 0) {
-        hasChanges = true;
-        channel.appendLine('📁 NEW FILES (added since last generation):');
-        channel.appendLine('─────────────────────────────────────────');
-        for (const f of newFiles.slice(0, 50)) {
-          channel.appendLine(`  + ${f}`);
-        }
-        if (newFiles.length > 50) {
-          channel.appendLine(`  ... and ${newFiles.length - 50} more`);
-        }
-        channel.appendLine('');
-      }
-
-      if (deletedFiles.length > 0) {
-        hasChanges = true;
-        channel.appendLine('🗑️  DELETED FILES (removed since last generation):');
-        channel.appendLine('─────────────────────────────────────────────────');
-        for (const f of deletedFiles.slice(0, 50)) {
-          channel.appendLine(`  - ${f}`);
-        }
-        if (deletedFiles.length > 50) {
-          channel.appendLine(`  ... and ${deletedFiles.length - 50} more`);
-        }
-        channel.appendLine('');
-      }
-
-      // ── Check for package.json dep changes ─────────────────────────────────
-      const pkgPath = path.join(rootPath, 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        try {
-          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8')) as Record<string, unknown>;
-          const pkgDeps = {
-            ...((pkg.dependencies as Record<string, string>) ?? {}),
-            ...((pkg.devDependencies as Record<string, string>) ?? {}),
-          };
-          const currentDepNames = new Set(Object.keys(pkgDeps));
-
-          // Compare with what was in the markdown
-          const oldDepsRaw = new Set<string>();
-          const depsSection = oldContent.match(/## 🛠 Tech Stack([\s\S]*?)(?=## )/);
-          if (!depsSection) {
-            // No previous deps section
-          }
-
-          // Look for dep names that appear in markdown code fences or script sections
-          const addedDeps: string[] = [];
-          const removedDeps: string[] = [];
-
-          // We can only really do this if we stored deps explicitly
-          // In our format, we list tech labels not raw dep names
-          // So show current count vs size of stack section
-          channel.appendLine('📦 CURRENT DEPENDENCIES SUMMARY:');
-          channel.appendLine('─────────────────────────────────');
-          channel.appendLine(`  Total packages: ${currentDepNames.size}`);
-          const scripts = (pkg.scripts as Record<string, string>) ?? {};
-          channel.appendLine(`  npm scripts: ${Object.keys(scripts).length}`);
-          channel.appendLine('');
-
-        } catch {
-          // Skip
-        }
-      }
-
-      // ── Summary ─────────────────────────────────────────────────────────────
-      channel.appendLine('═══════════════════════════════════════════════════════');
-      if (!hasChanges) {
-        channel.appendLine('✅ No structural changes detected since last generation.');
-        channel.appendLine('   Run "AI Context: Refresh Context" to update timestamps.');
-      } else {
-        channel.appendLine(`📊 Summary: ${newFiles.length} new file(s), ${deletedFiles.length} deleted file(s)`);
-        channel.appendLine('   Run "AI Context: Refresh Context" to update project.ai.md.');
-      }
-      channel.appendLine('═══════════════════════════════════════════════════════');
-
-      progress.report({ increment: 10 });
-    }
+  const oldFiles = new Set(
+    oldContent
+      .split('\n')
+      .map(l => l.match(/[├└]── (.+)$/))
+      .filter(Boolean)
+      .map(m => m![1].trim())
+      .filter(f => !f.endsWith('/'))
   );
+
+  const scan = scanWorkspace(root);
+
+  const currentFiles = new Set(
+    scan.allFiles.map(f =>
+      path.relative(root, f).replace(/\\/g, '/')
+    )
+  );
+
+  const newFiles: string[] = [];
+  const deletedFiles: string[] = [];
+
+  for (const f of currentFiles) {
+    if (!oldFiles.has(path.basename(f))) {
+      newFiles.push(f);
+    }
+  }
+
+  for (const f of oldFiles) {
+    const exists = Array.from(currentFiles).some(cf => path.basename(cf) === f);
+    if (!exists) {
+      deletedFiles.push(f);
+    }
+  }
+
+  channel.appendLine('==== AI CONTEXT DIFF ====');
+  channel.appendLine(`Project: ${getProjectName(root)}\n`);
+
+  if (newFiles.length) {
+    channel.appendLine('NEW FILES:');
+    newFiles.slice(0, 50).forEach(f => channel.appendLine(`+ ${f}`));
+    channel.appendLine('');
+  }
+
+  if (deletedFiles.length) {
+    channel.appendLine('DELETED FILES:');
+    deletedFiles.slice(0, 50).forEach(f => channel.appendLine(`- ${f}`));
+    channel.appendLine('');
+  }
+
+  if (!newFiles.length && !deletedFiles.length) {
+    channel.appendLine('No changes detected');
+  }
 }

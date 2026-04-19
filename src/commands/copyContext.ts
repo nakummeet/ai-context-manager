@@ -3,11 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { flashStatusBar } from '../statusBar';
 
-/**
- * Execute the "Copy Context" command.
- * Reads project.ai.md and copies it to clipboard in a ready-to-paste format.
- * If project.ai.md doesn't exist, offers to generate it first.
- */
+
 export async function copyContext(): Promise<void> {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders?.length) {

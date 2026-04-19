@@ -17,9 +17,9 @@ export function createStatusBar(context: vscode.ExtensionContext): vscode.Status
     100
   );
 
-  statusBarItem.text = '$(file-code) AI Context';
-  statusBarItem.tooltip = 'Click to copy AI project context to clipboard';
-  statusBarItem.command = 'aiContextManager.copy';
+  statusBarItem.text = '$(comment-discussion) AIBridge';
+  statusBarItem.tooltip = 'Open AIBridge panel';
+  statusBarItem.command = 'aibridge.openPanel';
   statusBarItem.show();
 
   context.subscriptions.push(statusBarItem);

@@ -1,0 +1,72 @@
+import * as vscode from 'vscode';
+
+export function openAIBridgePanel(context: vscode.ExtensionContext) {
+  const panel = vscode.window.createWebviewPanel(
+    'aibridgePanel',
+    'AIBridge',
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+
+  panel.webview.html = getHtml();
+
+  panel.webview.onDidReceiveMessage(async (msg) => {
+    switch (msg.command) {
+      case 'basic':
+        vscode.commands.executeCommand('aibridge.generateBasic');
+        break;
+      case 'tree':
+        vscode.commands.executeCommand('aibridge.generateTree');
+        break;
+      case 'full':
+        vscode.commands.executeCommand('aibridge.generateFull');
+        break;
+    }
+  });
+}
+
+function getHtml(): string {
+  return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <style>
+      body {
+        font-family: sans-serif;
+        padding: 20px;
+        background: #1e1e1e;
+        color: white;
+      }
+      button {
+        width: 100%;
+        padding: 20px;
+        margin: 10px 0;
+        font-size: 18px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .basic { background: #007acc; }
+      .tree { background: #388a34; }
+      .full { background: #a31515; }
+    </style>
+  </head>
+  <body>
+
+    <h2>AIBridge</h2>
+
+    <button class="basic" onclick="send('basic')">⚡ Generate Basic</button>
+    <button class="tree" onclick="send('tree')">🌳 Generate Tree</button>
+    <button class="full" onclick="send('full')">📄 Generate Full</button>
+
+    <script>
+      const vscode = acquireVsCodeApi();
+      function send(cmd) {
+        vscode.postMessage({ command: cmd });
+      }
+    </script>
+
+  </body>
+  </html>
+  `;
+}

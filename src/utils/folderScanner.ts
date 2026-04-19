@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
-/** Represents a single node in the folder tree */
 export interface FolderNode {
   name: string;
   isDirectory: boolean;
@@ -10,84 +9,59 @@ export interface FolderNode {
   relativePath: string;
 }
 
-/** Result of a full workspace scan */
 export interface ScanResult {
   tree: FolderNode[];
-  allFiles: string[];
+  allFiles: string[]; // ✅ restored
   keyFiles: string[];
   totalFileCount: number;
 }
 
-const KEY_FILE_PATTERNS = [
-  'package.json', 'tsconfig.json', 'tsconfig.base.json',
-  'Dockerfile', 'docker-compose.yml', 'docker-compose.yaml',
-  '.env.example', '.env.sample', '.env.template',
-  'README.md', 'readme.md',
-  'requirements.txt', 'pyproject.toml', 'setup.py',
-  'go.mod', 'go.sum',
-  'Cargo.toml', 'Cargo.lock',
-  '.eslintrc', '.eslintrc.js', '.eslintrc.json', '.eslintrc.yml',
-  '.prettierrc', '.prettierrc.js', '.prettierrc.json',
-  'vite.config.ts', 'vite.config.js',
-  'webpack.config.js', 'webpack.config.ts',
-  'next.config.js', 'next.config.ts', 'next.config.mjs',
-  'nuxt.config.ts', 'nuxt.config.js',
-  'astro.config.mjs', 'astro.config.ts',
-  'svelte.config.js',
-  'jest.config.js', 'jest.config.ts',
-  'vitest.config.ts', 'vitest.config.js',
-  'playwright.config.ts',
-  'tailwind.config.js', 'tailwind.config.ts',
-  'prisma/schema.prisma',
-  '.gitignore', '.gitattributes',
-  'turbo.json', 'nx.json',
-  'pnpm-workspace.yaml', 'lerna.json',
-  'Makefile', 'makefile',
-];
+const KEY_FILES = new Set([
+  'package.json', 'tsconfig.json', 'Dockerfile',
+  'docker-compose.yml', 'README.md', '.gitignore'
+]);
 
-/**
- * Get the list of ignored folders from VS Code configuration.
- */
+const SKIP_EXTENSIONS = new Set([
+  '.png', '.jpg', '.jpeg', '.gif', '.svg',
+  '.mp4', '.mp3', '.zip', '.exe'
+]);
+
 export function getIgnoredFolders(): string[] {
-  const config = vscode.workspace.getConfiguration('aiContextManager');
+  const config = vscode.workspace.getConfiguration('aiContextManager'); // ✅ fixed
   return config.get<string[]>('ignoredFolders') ?? [
-    'node_modules', '.git', 'dist', 'build', '.next',
-    'out', 'coverage', '.cache', '.vscode', '__pycache__',
-    '.pytest_cache', 'venv', '.env'
+    'node_modules', '.git', 'dist', 'build', '.next', 'out'
   ];
 }
 
-/**
- * Get the max depth from VS Code configuration.
- */
 export function getMaxDepth(): number {
-  const config = vscode.workspace.getConfiguration('aiContextManager');
+  const config = vscode.workspace.getConfiguration('aiContextManager'); // ✅ fixed
   return config.get<number>('maxDepth') ?? 4;
 }
 
-/**
- * Recursively scan the workspace folder and build a file tree.
- * @param rootPath - Absolute path of the workspace root
- * @returns ScanResult containing tree, all files, key files, and total count
- */
 export function scanWorkspace(rootPath: string): ScanResult {
   const ignoredFolders = getIgnoredFolders();
   const maxDepth = getMaxDepth();
+
   const allFiles: string[] = [];
   const keyFiles: string[] = [];
   let totalFileCount = 0;
 
-  function buildTree(dirPath: string, depth: number): FolderNode[] {
-    if (depth > maxDepth) return [];
+  function buildTree(dir: string, depth: number): FolderNode[] {
+    if (depth > maxDepth) {
+      return [{
+        name: '...',
+        isDirectory: true,
+        relativePath: ''
+      }];
+    }
 
     let entries: fs.Dirent[];
     try {
-      entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch {
       return [];
     }
 
-    // Sort: directories first, then files, alphabetically
     entries.sort((a, b) => {
       if (a.isDirectory() && !b.isDirectory()) return -1;
       if (!a.isDirectory() && b.isDirectory()) return 1;
@@ -98,38 +72,35 @@ export function scanWorkspace(rootPath: string): ScanResult {
 
     for (const entry of entries) {
       if (ignoredFolders.includes(entry.name)) continue;
-      // Skip hidden files/folders (except .env.example etc.)
-      if (entry.name.startsWith('.') && !KEY_FILE_PATTERNS.some(k => k === entry.name)) {
-        if (!entry.name.startsWith('.env') && entry.name !== '.gitignore') continue;
-      }
 
-      const fullPath = path.join(dirPath, entry.name);
-      const relativePath = path.relative(rootPath, fullPath);
+      const full = path.join(dir, entry.name);
+      const rel = path.relative(rootPath, full).replace(/\\/g, '/');
+
+      if (entry.name.startsWith('.') && !KEY_FILES.has(entry.name)) continue;
 
       if (entry.isDirectory()) {
-        const children = buildTree(fullPath, depth + 1);
         nodes.push({
           name: entry.name,
           isDirectory: true,
-          children,
-          relativePath
+          children: buildTree(full, depth + 1),
+          relativePath: rel
         });
-      } else {
-        totalFileCount++;
-        allFiles.push(fullPath);
 
-        // Check if it's a key file
-        if (KEY_FILE_PATTERNS.some(pattern => {
-          const rel = relativePath.replace(/\\/g, '/');
-          return rel === pattern || rel.endsWith('/' + pattern) || entry.name === pattern;
-        })) {
-          keyFiles.push(relativePath.replace(/\\/g, '/'));
+      } else {
+        const ext = path.extname(entry.name).toLowerCase();
+        if (SKIP_EXTENSIONS.has(ext)) continue;
+
+        totalFileCount++;
+        allFiles.push(full);
+
+        if (KEY_FILES.has(entry.name)) {
+          keyFiles.push(rel);
         }
 
         nodes.push({
           name: entry.name,
           isDirectory: false,
-          relativePath
+          relativePath: rel
         });
       }
     }
@@ -137,30 +108,28 @@ export function scanWorkspace(rootPath: string): ScanResult {
     return nodes;
   }
 
-  const tree = buildTree(rootPath, 0);
-
-  return { tree, allFiles, keyFiles, totalFileCount };
+  return {
+    tree: buildTree(rootPath, 0),
+    allFiles,
+    keyFiles,
+    totalFileCount
+  };
 }
 
-/**
- * Convert the folder tree into a readable ASCII tree string.
- * @param nodes - Array of FolderNode objects
- * @param prefix - Current line prefix (for indentation)
- * @param isLast - Whether this node is the last child
- */
-export function renderTree(nodes: FolderNode[], prefix = '', isLast = true): string {
+export function renderTree(nodes: FolderNode[], prefix = ''): string {
   let result = '';
 
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i];
-    const isLastNode = i === nodes.length - 1;
-    const connector = isLastNode ? '└── ' : '├── ';
-    const childPrefix = prefix + (isLastNode ? '    ' : '│   ');
+    const isLast = i === nodes.length - 1;
+
+    const connector = isLast ? '└── ' : '├── ';
+    const nextPrefix = prefix + (isLast ? '    ' : '│   ');
 
     result += `${prefix}${connector}${node.name}${node.isDirectory ? '/' : ''}\n`;
 
-    if (node.isDirectory && node.children && node.children.length > 0) {
-      result += renderTree(node.children, childPrefix, isLastNode);
+    if (node.isDirectory && node.children) {
+      result += renderTree(node.children, nextPrefix);
     }
   }
 

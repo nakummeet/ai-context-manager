@@ -45,7 +45,7 @@ export async function refreshContext(): Promise<void> {
 
     if (includeGit && hasGitRepo(rootPath)) {
       try {
-        gitCommits = getGitHistory(rootPath);
+        gitCommits = await getGitHistory(rootPath);
       } catch (e) {
         console.log("Git fetch failed:", e);
       }
