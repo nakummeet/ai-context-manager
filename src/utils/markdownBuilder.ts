@@ -22,6 +22,11 @@ const LOCK_FILES = new Set([
   'Cargo.lock','poetry.lock','composer.lock','Gemfile.lock',
 ]);
 
+const IGNORE_IN_TREE = new Set([
+  'aibridge.md','project.ai.md','.gitignore','.env',
+  'vercel.json','netlify.toml','.eslintrc.json','.prettierrc',
+]);
+
 const MAX_FILE_SIZE_BYTES = 50 * 1024;
 
 export type GenerateMode = 'basic' | 'tree' | 'full';
@@ -88,7 +93,7 @@ function getFileMeta(fp: string): { lines: number; sizeKb: string } {
   } catch { return { lines: 0, sizeKb: '?' }; }
 }
 
-// ── Tree mode: detect what each file imports or links to ──────────────────
+// ── Detect imports/dependencies from file content ─────────────────────────
 function detectDeps(fp: string): string[] {
   const { content, error } = readSafe(fp);
   if (error) return [];
@@ -98,7 +103,6 @@ function detectDeps(fp: string): string[] {
   const lines = content.split('\n').slice(0, 60);
 
   for (const line of lines) {
-    // HTML: href / src attributes
     const htmlMatch = line.match(/(?:href|src)=["']([^"'#?]+)["']/);
     if (htmlMatch) {
       const val = htmlMatch[1].trim();
@@ -111,7 +115,6 @@ function detectDeps(fp: string): string[] {
       continue;
     }
 
-    // JS/TS: import or require
     if (['.js','.ts','.jsx','.tsx','.mjs'].includes(ext)) {
       const imp = line.match(/(?:from|require)\s*\(?\s*['"]([^'"]+)['"]/);
       if (imp) {
@@ -121,50 +124,415 @@ function detectDeps(fp: string): string[] {
       }
     }
 
-    // CSS: @import
     if (['.css','.scss','.sass'].includes(ext)) {
       const imp = line.match(/@import\s+['"]([^'"]+)['"]/);
       if (imp) deps.push(imp[1].replace(/^\.\.?\//, ''));
     }
   }
 
-  // Deduplicate
   return [...new Set(deps)].slice(0, 8);
 }
 
-// ── Build the tree mode section ───────────────────────────────────────────
-function buildTreeSection(selectedFiles: string[], rootPath: string): string[] {
-  const lines: string[] = [];
+// ── Detect API endpoints from route files ─────────────────────────────────
+interface ApiEndpoint {
+  method: string;
+  path: string;
+  handler: string;
+  file: string;
+}
 
-  lines.push('## 🌳 Project Architecture Tree\n');
-  lines.push('```');
-  lines.push(path.basename(rootPath) + '/');
+function extractEndpoints(fp: string, rootPath: string): ApiEndpoint[] {
+  const { content, error } = readSafe(fp);
+  if (error) return [];
 
-  for (const fp of selectedFiles) {
-    const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
+  const endpoints: ApiEndpoint[] = [];
+  const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
+  const lines = content.split('\n');
 
-    if (isBinaryOrLockFile(fp)) {
-      lines.push(`├── ${rel}  [binary — skipped]`);
-      continue;
-    }
+  // Detect base path from filename
+  const fileName = path.basename(fp, path.extname(fp));
+  const basePath = fileName
+    .replace('Routes', '')
+    .replace('routes', '')
+    .replace('Router', '')
+    .toLowerCase();
 
-    const deps = detectDeps(fp);
-    const meta = getFileMeta(fp);
+  for (const line of lines) {
+    const match = line.match(
+      /router\.(get|post|put|patch|delete|use)\s*\(\s*['"`]([^'"`]+)['"`]/i
+    );
+    if (match) {
+      const method = match[1].toUpperCase();
+      const routePath = match[2];
 
-    lines.push(`├── ${rel}  (${meta.lines} lines, ${meta.sizeKb} KB)`);
+      // Try to extract handler name
+      const handlerMatch = line.match(/,\s*(?:\w+\.)?(\w+)\s*[,)]/);
+      const handler = handlerMatch ? handlerMatch[1] : '';
 
-    if (deps.length > 0) {
-      deps.forEach((dep, i) => {
-        const isLast = i === deps.length - 1;
-        lines.push(`│   ${isLast ? '└──' : '├──'} uses → ${dep}`);
+      endpoints.push({
+        method,
+        path: `/${basePath}${routePath === '/' ? '' : routePath}`,
+        handler,
+        file: rel,
       });
     }
   }
 
+  return endpoints;
+}
+
+// ── Detect important files and their roles ────────────────────────────────
+interface ImportantFile {
+  path: string;
+  role: string;
+  why: string;
+  lines: number;
+}
+
+function analyzeImportantFiles(
+  selectedFiles: string[],
+  rootPath: string
+): ImportantFile[] {
+  const important: ImportantFile[] = [];
+
+  const roleMap: Array<{
+    pattern: RegExp;
+    role: string;
+    why: (name: string) => string;
+  }> = [
+    {
+      pattern: /controller/i,
+      role: 'Controller',
+      why: (n) => `Handles business logic for ${n.replace(/controller/i,'').replace(/\./,'')} operations`,
+    },
+    {
+      pattern: /middleware/i,
+      role: 'Middleware',
+      why: (n) => `Intercepts requests — ${n.includes('auth') ? 'verifies JWT tokens and protects routes' : n.includes('error') ? 'handles errors globally' : n.includes('role') ? 'enforces role-based access control' : 'validates or transforms requests'}`,
+    },
+    {
+      pattern: /model/i,
+      role: 'Model',
+      why: (n) => `Defines ${n.replace(/\.(js|ts)$/,'')} database schema and shape`,
+    },
+    {
+      pattern: /route/i,
+      role: 'Router',
+      why: (n) => `Maps HTTP endpoints to ${n.replace(/routes?\.(js|ts)$/,'').replace(/\./,'')} controller functions`,
+    },
+    {
+      pattern: /server\.(js|ts)$/i,
+      role: 'Entry Point',
+      why: () => 'App entry — initializes Express, loads middleware, connects DB, starts server',
+    },
+    {
+      pattern: /index\.(js|ts)$/i,
+      role: 'App Root',
+      why: () => 'Registers all routes and global middleware onto the Express app',
+    },
+    {
+      pattern: /db\.(js|ts)$/i,
+      role: 'Database',
+      why: () => 'Manages database connection — called once at startup',
+    },
+    {
+      pattern: /auth/i,
+      role: 'Auth',
+      why: (n) => `Core authentication — ${n.includes('controller') ? 'handles login/register/logout' : n.includes('middleware') ? 'protects private routes with JWT' : 'auth utilities'}`,
+    },
+    {
+      pattern: /token/i,
+      role: 'Utility',
+      why: () => 'Generates and signs JWT tokens for authenticated sessions',
+    },
+    {
+      pattern: /response|apiResponse/i,
+      role: 'Utility',
+      why: () => 'Standardizes all API responses — used by every controller',
+    },
+  ];
+
+  for (const fp of selectedFiles) {
+    const base = path.basename(fp);
+    if (IGNORE_IN_TREE.has(base) || LOCK_FILES.has(base)) continue;
+    if (isBinaryOrLockFile(fp)) continue;
+
+    const meta = getFileMeta(fp);
+    const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
+
+    for (const rule of roleMap) {
+      if (rule.pattern.test(base)) {
+        important.push({
+          path: rel,
+          role: rule.role,
+          why: rule.why(base),
+          lines: meta.lines,
+        });
+        break;
+      }
+    }
+  }
+
+  // Sort by role priority
+  const rolePriority: Record<string, number> = {
+    'Entry Point': 1,
+    'App Root': 2,
+    'Database': 3,
+    'Auth': 4,
+    'Controller': 5,
+    'Router': 6,
+    'Middleware': 7,
+    'Model': 8,
+    'Utility': 9,
+  };
+
+  return important
+    .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99))
+    .slice(0, 10);
+}
+
+// ── Detect business flow from project structure ───────────────────────────
+function detectBusinessFlow(
+  selectedFiles: string[],
+  techStack: TechStack | null
+): string {
+  const fileNames = selectedFiles.map(f =>
+    path.basename(f).toLowerCase()
+  );
+
+  const has = (keyword: string) =>
+    fileNames.some(f => f.includes(keyword));
+
+  const steps: string[] = [];
+
+  // Auth
+  if (has('auth') || has('user')) steps.push('User registers / logs in');
+
+  // Browse
+  if (has('food') || has('product') || has('item')) {
+    steps.push('Browse available items');
+  } else if (has('restaurant') || has('store')) {
+    steps.push('Browse restaurants / stores');
+  }
+
+  // Cart
+  if (has('cart')) steps.push('Add items to cart');
+
+  // Order
+  if (has('order')) steps.push('Place order');
+
+  // Payment
+  if (techStack?.other.includes('Stripe') || has('payment')) {
+    steps.push('Process payment (Stripe)');
+  }
+
+  // Delivery / fulfillment
+  if (has('deliver') || has('fulfil')) steps.push('Order fulfilled');
+
+  if (steps.length === 0) {
+    steps.push('Client sends request');
+    steps.push('Middleware validates');
+    steps.push('Controller processes');
+    steps.push('Response returned');
+  }
+
+  return steps.join(' → ');
+}
+
+// ── Detect dependency insights ────────────────────────────────────────────
+interface DepInsight {
+  file: string;
+  dependsOn: string[];
+  reason: string;
+}
+
+function buildDepInsights(
+  selectedFiles: string[],
+  rootPath: string
+): DepInsight[] {
+  const insights: DepInsight[] = [];
+
+  for (const fp of selectedFiles) {
+    const base = path.basename(fp).toLowerCase();
+    const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
+
+    if (!base.includes('controller') && !base.includes('route')) continue;
+    if (isBinaryOrLockFile(fp)) continue;
+
+    const deps = detectDeps(fp).filter(d => !d.includes('(pkg)') && !d.includes('(CDN)'));
+    if (deps.length === 0) continue;
+
+    const isController = base.includes('controller');
+    const isRoute = base.includes('route');
+
+    let reason = '';
+    if (isController) {
+      reason = `Needs ${deps.map(d => path.basename(d)).join(', ')} to read/write data and send responses`;
+    } else if (isRoute) {
+      reason = `Connects HTTP endpoints to ${deps.map(d => path.basename(d)).join(', ')}`;
+    }
+
+    insights.push({ file: rel, dependsOn: deps, reason });
+  }
+
+  return insights.slice(0, 6);
+}
+
+// ── Build architecture tree section ──────────────────────────────────────
+interface TreeNode {
+  name: string;
+  children: Map<string, TreeNode>;
+  fullPath?: string;
+}
+
+// ─────────────────────────────────────────────
+// Build hierarchical tree
+// ─────────────────────────────────────────────
+function buildTree(paths: string[], rootPath: string): TreeNode {
+  const root: TreeNode = {
+    name: path.basename(rootPath),
+    children: new Map(),
+  };
+
+  for (const relPath of paths) {
+    const parts = relPath.split('/');
+    let current = root;
+    let currentFullPath = rootPath;
+
+    for (const part of parts) {
+      currentFullPath = path.join(currentFullPath, part);
+
+      if (!current.children.has(part)) {
+        current.children.set(part, {
+          name: part,
+          children: new Map(),
+          fullPath: currentFullPath,
+        });
+      }
+
+      current = current.children.get(part)!;
+    }
+  }
+
+  return root;
+}
+
+// ─────────────────────────────────────────────
+// Clean dependency label
+// ─────────────────────────────────────────────
+function cleanDep(dep: string): string {
+  return dep.replace(/\s*\(pkg\)|\s*\(CDN\)/g, '');
+}
+
+// ─────────────────────────────────────────────
+// Render pretty tree
+// ─────────────────────────────────────────────
+function renderTreePretty(
+  node: TreeNode,
+  prefix = '',
+  isLast = true,
+  isRoot = false
+): string[] {
+  const lines: string[] = [];
+
+  // ROOT (no └──)
+  if (isRoot) {
+    lines.push(node.name + '/');
+  } else {
+    const connector = isLast ? '└── ' : '├── ';
+
+    if (node.fullPath && !node.children.size) {
+      const meta = getFileMeta(node.fullPath);
+      lines.push(
+        `${prefix}${connector}${node.name} (${meta.lines} lines, ${meta.sizeKb} KB)`
+      );
+    } else {
+      lines.push(prefix + connector + node.name);
+    }
+  }
+
+  const newPrefix = isRoot
+    ? ''
+    : prefix + (isLast ? '    ' : '│   ');
+
+  const children = Array.from(node.children.values());
+
+  children.forEach((child, index) => {
+    const last = index === children.length - 1;
+
+    lines.push(...renderTreePretty(child, newPrefix, last, false));
+
+    // Add dependencies for files only
+    if (child.fullPath && !child.children.size) {
+      const deps = detectDeps(child.fullPath).map(cleanDep);
+
+      if (deps.length === 0) {
+        lines.push(
+          newPrefix +
+            (last ? '    ' : '│   ') +
+            '└── (no external dependencies)'
+        );
+      } else {
+        deps.forEach((dep, i) => {
+          const depPrefix =
+            newPrefix +
+            (last ? '    ' : '│   ') +
+            (i === deps.length - 1 ? '└── ' : '├── ');
+          lines.push(depPrefix + 'uses → ' + dep);
+        });
+      }
+    }
+  });
+
+  return lines;
+}
+
+// ─────────────────────────────────────────────
+// FINAL TREE BUILDER
+// ─────────────────────────────────────────────
+function buildArchitectureTree(
+  selectedFiles: string[],
+  rootPath: string,
+  gitCommits: GitCommit[]
+): string[] {
+  const lines: string[] = [];
+
+  lines.push('## 🌳 Project Architecture Tree\n');
+  lines.push('```');
+
+  // Filter valid files
+  const relPaths = selectedFiles
+    .filter(fp => {
+      const base = path.basename(fp);
+      return (
+        !IGNORE_IN_TREE.has(base) &&
+        !LOCK_FILES.has(base) &&
+        !isBinaryOrLockFile(fp)
+      );
+    })
+    .map(fp => path.relative(rootPath, fp).replace(/\\/g, '/'));
+
+  const tree = buildTree(relPaths, rootPath);
+
+  // Render tree
+  lines.push(...renderTreePretty(tree, '', true, true));
+
   lines.push('```\n');
 
-  // Last 5 commits
+  // Git commits
   lines.push('## 🕐 Last 5 Commits\n');
+
+  if (gitCommits.length) {
+    gitCommits.slice(0, 5).forEach(c => {
+      lines.push(
+        `- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`
+      );
+    });
+  } else {
+    lines.push('_No git history found._');
+  }
+
+  lines.push('');
 
   return lines;
 }
@@ -197,23 +565,147 @@ export function buildMarkdown(input: MarkdownInput): string {
   lines.push(`> Paste into ChatGPT, Claude, Gemini, or any AI tool.\n`);
   lines.push('---\n');
 
-  // ── Project Summary ───────────────────────────────────────────────────────
-  lines.push('## 📋 Project Summary\n');
+  // ── 1. PROJECT OVERVIEW ───────────────────────────────────────────────────
+  lines.push('## 📋 Project Overview\n');
+
   if (input.techStack) {
-    const top = [
-      ...input.techStack.languages,
-      ...input.techStack.frontend,
-      ...input.techStack.backend,
-    ].slice(0, 4).join(', ');
-    lines.push(`**${input.projectName}** is built with ${top || 'HTML, CSS, JavaScript'}.`);
-    if (input.techStack.backend.length)  lines.push(`Backend: ${input.techStack.backend.join(', ')}.`);
-    if (input.techStack.database.length) lines.push(`Database: ${input.techStack.database.join(', ')}.`);
+    const isBackend  = input.techStack.backend.length > 0;
+    const hasMongo   = input.techStack.database.some(d => d.toLowerCase().includes('mongo'));
+    const hasPostgres= input.techStack.database.some(d => d.toLowerCase().includes('postgres'));
+    const hasStripe  = input.techStack.other.includes('Stripe');
+    const hasAuth    = input.techStack.other.includes('JWT');
+    const isFrontend = input.techStack.frontend.length > 0;
+
+    let overview = `**${input.projectName}**`;
+
+    if (isBackend && isFrontend) {
+      overview += ` is a full-stack application built with ${[...input.techStack.frontend, ...input.techStack.backend].slice(0,3).join(', ')}.`;
+    } else if (isBackend) {
+      overview += ` is a backend REST API built with ${input.techStack.backend.join(', ')}`;
+      if (input.techStack.database.length) {
+        overview += ` and ${input.techStack.database.join(', ')}`;
+      }
+      overview += '.';
+    } else if (isFrontend) {
+      overview += ` is a frontend application built with ${input.techStack.frontend.join(', ')}.`;
+    } else {
+      overview += ` is a ${input.techStack.languages.join(', ')} project.`;
+    }
+
+    lines.push(overview);
+
+    // Purpose detection
+    const fileNames = input.selectedFiles.map(f => path.basename(f).toLowerCase());
+    const has = (k: string) => fileNames.some(f => f.includes(k));
+
+    if (has('order') && has('food')) {
+      lines.push('It powers a **food ordering platform** — handling restaurants, menus, cart, orders' + (hasStripe ? ', and payments' : '') + '.');
+    } else if (has('order') && has('product')) {
+      lines.push('It powers an **e-commerce platform** — handling products, cart, orders' + (hasStripe ? ', and payments' : '') + '.');
+    } else if (has('auth') && hasAuth) {
+      lines.push('It includes a full **authentication system** using JWT tokens for secure session management.');
+    }
+
+    if (hasAuth) {
+      lines.push('Protected routes use JWT-based authentication middleware.');
+    }
   } else {
-    lines.push(`**${input.projectName}** — static frontend project.`);
+    lines.push(`**${input.projectName}** — static project.`);
   }
   lines.push('');
 
-  // ── Tech Stack ────────────────────────────────────────────────────────────
+  // ── 2. CORE ARCHITECTURE ──────────────────────────────────────────────────
+  lines.push('## 🏗 Core Architecture\n');
+
+  if (input.techStack?.backend.length) {
+    const fileNames = input.selectedFiles.map(f => path.basename(f).toLowerCase());
+    const has = (k: string) => fileNames.some(f => f.includes(k));
+
+    const layers: Array<{ name: string; desc: string }> = [];
+
+    if (has('route'))      layers.push({ name: 'Routes',      desc: 'Define HTTP endpoints and map them to controller functions' });
+    if (has('controller')) layers.push({ name: 'Controllers', desc: 'Handle request logic — validate input, call models, return responses' });
+    if (has('middleware')) layers.push({ name: 'Middleware',  desc: 'Intercept requests — handle auth, roles, validation, errors' });
+    if (has('model'))      layers.push({ name: 'Models',      desc: 'Define database schemas and interact with the database' });
+    if (has('util') || has('helper')) {
+      layers.push({ name: 'Utils', desc: 'Shared helpers — token generation, response formatting, etc.' });
+    }
+    if (has('config'))     layers.push({ name: 'Config',      desc: 'Database connection and app-level configuration' });
+
+    if (layers.length > 0) {
+      layers.forEach(l => lines.push(`- **${l.name}** — ${l.desc}`));
+    } else {
+      lines.push('- Standard MVC pattern — routes, controllers, models');
+    }
+  } else {
+    lines.push('- Static project — no server-side architecture detected');
+  }
+  lines.push('');
+
+  // ── 3. API SUMMARY ────────────────────────────────────────────────────────
+  const routeFiles = input.selectedFiles.filter(fp =>
+    path.basename(fp).toLowerCase().includes('route') &&
+    !isBinaryOrLockFile(fp)
+  );
+
+  if (routeFiles.length > 0) {
+    lines.push('## 🔌 API Endpoints\n');
+
+    const allEndpoints: ApiEndpoint[] = [];
+    for (const fp of routeFiles) {
+      allEndpoints.push(...extractEndpoints(fp, input.rootPath));
+    }
+
+    if (allEndpoints.length > 0) {
+      // Group by base path
+      const groups = new Map<string, ApiEndpoint[]>();
+      for (const ep of allEndpoints) {
+        const base = ep.path.split('/')[1] ?? 'root';
+        if (!groups.has(base)) groups.set(base, []);
+        groups.get(base)!.push(ep);
+      }
+
+      for (const [group, eps] of groups) {
+        lines.push(`**/${group}**`);
+        for (const ep of eps) {
+          const handlerNote = ep.handler ? ` → ${ep.handler}` : '';
+          lines.push(`- \`${ep.method}\` \`${ep.path}\`${handlerNote}`);
+        }
+        lines.push('');
+      }
+    } else {
+      lines.push('_Could not auto-detect endpoints. Check route files manually._\n');
+    }
+  }
+
+  // ── 4. BUSINESS FLOW ──────────────────────────────────────────────────────
+  lines.push('## 🔄 Business Flow\n');
+  const flow = detectBusinessFlow(input.selectedFiles, input.techStack);
+  lines.push(flow + '\n');
+
+  // ── 5. IMPORTANT FILES ────────────────────────────────────────────────────
+  const importantFiles = analyzeImportantFiles(input.selectedFiles, input.rootPath);
+  if (importantFiles.length > 0) {
+    lines.push('## ⭐ Important Files\n');
+    lines.push('| File | Role | Purpose |');
+    lines.push('|---|---|---|');
+    importantFiles.forEach(f =>
+      lines.push(`| \`${path.basename(f.path)}\` | ${f.role} | ${f.why} |`)
+    );
+    lines.push('');
+  }
+
+  // ── 6. DEPENDENCY INSIGHTS ────────────────────────────────────────────────
+  const insights = buildDepInsights(input.selectedFiles, input.rootPath);
+  if (insights.length > 0) {
+    lines.push('## 🔗 Dependency Insights\n');
+    for (const ins of insights) {
+      lines.push(`- **${path.basename(ins.file)}** — ${ins.reason}`);
+    }
+    lines.push('');
+  }
+
+  // ── 7. TECH STACK ─────────────────────────────────────────────────────────
   lines.push('## 🛠 Tech Stack\n');
   if (input.techStack) {
     const ts = input.techStack;
@@ -229,21 +721,7 @@ export function buildMarkdown(input: MarkdownInput): string {
   }
   lines.push('');
 
-  // ── Folder Structure ──────────────────────────────────────────────────────
-  lines.push('## 📁 Folder Structure\n');
-  lines.push('```');
-  lines.push(path.basename(input.rootPath) + '/');
-  lines.push(renderTree(input.tree));
-  lines.push('```\n');
-
-  // ── Key Files ─────────────────────────────────────────────────────────────
-  if (input.keyFiles.length) {
-    lines.push('## 📄 Key Files\n');
-    input.keyFiles.forEach(f => lines.push(`- \`${f}\``));
-    lines.push('');
-  }
-
-  // ── NPM Scripts ───────────────────────────────────────────────────────────
+  // ── 8. NPM SCRIPTS ────────────────────────────────────────────────────────
   if (cfg.get<boolean>('includeScripts') !== false) {
     const scripts = Object.entries(getNpmScripts(input.rootPath));
     if (scripts.length) {
@@ -253,7 +731,7 @@ export function buildMarkdown(input: MarkdownInput): string {
     }
   }
 
-  // ── Environment Variables ─────────────────────────────────────────────────
+  // ── 9. ENV VARS ───────────────────────────────────────────────────────────
   if (cfg.get<boolean>('includeEnvKeys') !== false) {
     const keys = getEnvKeys(input.rootPath);
     if (keys.length) {
@@ -263,20 +741,27 @@ export function buildMarkdown(input: MarkdownInput): string {
     }
   }
 
-  // ── Git History ───────────────────────────────────────────────────────────
-  if (cfg.get<boolean>('includeGitHistory') !== false && input.gitCommits.length) {
-    const count = input.mode === 'tree' ? 5 : input.gitCommits.length;
-    lines.push('## 🕐 Recent Git Activity\n');
-    input.gitCommits.slice(0, count).forEach(c =>
-      lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`)
-    );
-    lines.push('');
-  }
-
-  // ── Mode-specific section ─────────────────────────────────────────────────
+  // ── 10. MODE-SPECIFIC SECTIONS ────────────────────────────────────────────
 
   if (input.mode === 'basic') {
-    // BASIC — file list with metadata only, no code
+
+    // Folder structure
+    lines.push('## 📁 Folder Structure\n');
+    lines.push('```');
+    lines.push(path.basename(input.rootPath) + '/');
+    lines.push(renderTree(input.tree));
+    lines.push('```\n');
+
+    // Git history
+    if (cfg.get<boolean>('includeGitHistory') !== false && input.gitCommits.length) {
+      lines.push('## 🕐 Recent Git Activity\n');
+      input.gitCommits.forEach(c =>
+        lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`)
+      );
+      lines.push('');
+    }
+
+    // File list table
     if (input.selectedFiles.length) {
       lines.push('## 📎 Selected Files\n');
       lines.push('| File | Lines | Size |');
@@ -293,40 +778,49 @@ export function buildMarkdown(input: MarkdownInput): string {
       lines.push('');
       lines.push('> 💡 Ask the AI about any specific file and share its contents on request.\n');
     }
-  }
 
-  else if (input.mode === 'tree') {
-    // TREE — visual architecture with file connections
-    if (input.selectedFiles.length) {
-      const treeSection = buildTreeSection(input.selectedFiles, input.rootPath);
-      lines.push(...treeSection);
+  } else if (input.mode === 'tree') {
 
-      // Add last 5 commits again specifically for tree mode (already shown above)
-      // so we skip duplicate — just add architecture note
-      lines.push('> 💡 Tree shows each file and what it imports or links to.\n');
-    } else {
-      lines.push('## 🌳 Project Architecture\n');
-      lines.push('> No files selected. Select files in the AIBridge panel to see their connections.\n');
-    }
-  }
+    // Architecture tree + last 5 commits
+    const treeSection = buildArchitectureTree(
+      input.selectedFiles,
+      input.rootPath,
+      input.gitCommits
+    );
+    lines.push(...treeSection);
 
-  else if (input.mode === 'full') {
-    // FULL — complete code of every selected file
+  } else if (input.mode === 'full') {
+
+    // Full file contents
     if (input.selectedFiles.length) {
       lines.push('## 📎 Selected Files — Full Code\n');
       for (const fp of input.selectedFiles) {
+        const base = path.basename(fp);
+        if (IGNORE_IN_TREE.has(base) || LOCK_FILES.has(base)) continue;
+
         const rel = path.relative(input.rootPath, fp).replace(/\\/g, '/');
         const { content, error } = readSafe(fp);
+
         if (error) {
           lines.push(`> ⚠️ Skipped \`${rel}\` — ${error}\n`);
           continue;
         }
+
         const meta = getFileMeta(fp);
         lines.push(`### ${rel}  _(${meta.lines} lines)_`);
         lines.push('```' + getLang(fp));
         lines.push(content);
         lines.push('```\n');
       }
+    }
+
+    // Git history for full mode
+    if (cfg.get<boolean>('includeGitHistory') !== false && input.gitCommits.length) {
+      lines.push('## 🕐 Recent Git Activity\n');
+      input.gitCommits.forEach(c =>
+        lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`)
+      );
+      lines.push('');
     }
   }
 
