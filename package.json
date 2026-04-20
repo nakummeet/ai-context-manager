@@ -2,9 +2,8 @@
   "name": "ai-context-manager",
   "displayName": "AI Context Manager v2.0",
   "description": "Manage and reuse project context across ALL AI tools — ChatGPT, Claude, Gemini, Grok, Perplexity",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "publisher": "nakummeet",
-  "icon": "icon.png",
   "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
@@ -13,6 +12,7 @@
     "Other",
     "Snippets"
   ],
+  "icon": "images/icon.ico",
   "keywords": [
     "ai",
     "context",
@@ -152,5 +152,8 @@
     "@types/node": "^20.19.39",
     "@types/vscode": "^1.85.0",
     "typescript": "^5.3.0"
+  },
+  "dependencies": {
+    "@vscode/vsce": "^3.9.1"
   }
 }
