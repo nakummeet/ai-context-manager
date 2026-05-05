@@ -1,274 +1,320 @@
 import * as vscode from 'vscode';
 
 export class SidebarPanelProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'aibridgeSidebar';
+  public static readonly viewType = 'contextflowSidebar';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView) {
-    webviewView.webview.options = { enableScripts: true };
-    webviewView.webview.html = this.getHtml();
+    webviewView.webview.options = {
+      enableScripts: true,
+    };
+
+    // ✅ Convert local image path to webview-safe URI
+    const iconUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(
+        this.context.extensionUri,
+        'images',
+        'icon.ico'
+      )
+    );
+
+    webviewView.webview.html = this.getHtml(iconUri);
 
     webviewView.webview.onDidReceiveMessage((msg) => {
-      vscode.commands.executeCommand(`aibridge.${msg.command}`);
+      vscode.commands.executeCommand(`contextflow.${msg.command}`);
     });
   }
 
-  private getHtml(): string {
-    return `
-<!DOCTYPE html>
+  private getHtml(iconUri: vscode.Uri): string {
+    return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>AIBridge</title>
+  <title>ContextFlow</title>
+
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@500;700&display=swap');
-
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #0d0d0f;
-      --surface:   #141417;
-      --border:    #222228;
-      --accent-1:  #4f8eff;   /* electric blue  */
-      --accent-2:  #3ecf8e;   /* terminal green */
-      --accent-3:  #ff5f5f;   /* hot coral      */
-      --muted:     #52525e;
-      --text:      #e8e8f0;
-      --text-dim:  #8888a0;
-      --radius:    10px;
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
     }
 
-    html, body {
-      height: 100%;
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Syne', sans-serif;
-      overflow-x: hidden;
-    }
-
-    /* ── noise overlay ─────────────────────────── */
-    body::before {
-      content: '';
-      position: fixed; inset: 0;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
-      pointer-events: none; z-index: 0;
-    }
-
-    .wrap {
-      position: relative; z-index: 1;
-      padding: 18px 14px 24px;
-      display: flex; flex-direction: column; gap: 20px;
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: transparent;
+      color: var(--vscode-foreground);
+      padding: 12px 10px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
       min-height: 100vh;
     }
 
-    /* ── header ────────────────────────────────── */
+    /* Header */
     .header {
-      display: flex; align-items: center; gap: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 2px 10px;
+      border-bottom: 1px solid var(--vscode-widget-border, #333);
+      margin-bottom: 4px;
     }
+
     .logo {
-      width: 28px; height: 28px;
-      border-radius: 7px;
-      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
-      display: grid; place-items: center;
-      font-size: 14px; flex-shrink: 0;
-      box-shadow: 0 0 14px color-mix(in srgb, var(--accent-1) 40%, transparent);
+      width: 22px;
+      height: 22px;
+      object-fit: cover;
+      border-radius: 5px;
+      flex-shrink: 0;
     }
+
+    .header-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
     .title {
-      font-size: 13px; font-weight: 700; letter-spacing: .04em;
-      color: var(--text);
-    }
-    .badge {
-      margin-left: auto;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9px; font-weight: 600;
-      padding: 2px 7px; border-radius: 99px;
-      background: color-mix(in srgb, var(--accent-2) 15%, transparent);
-      color: var(--accent-2);
-      border: 1px solid color-mix(in srgb, var(--accent-2) 30%, transparent);
-      letter-spacing: .06em;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-foreground);
+      letter-spacing: 0.02em;
     }
 
-    /* ── divider ───────────────────────────────── */
-    .divider {
-      height: 1px;
-      background: linear-gradient(90deg, transparent, var(--border) 30%, var(--border) 70%, transparent);
+    .subtitle {
+      font-size: 9px;
+      color: var(--vscode-descriptionForeground);
+      letter-spacing: 0.03em;
     }
 
-    /* ── section label ─────────────────────────── */
-    .section-label {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9px; font-weight: 600; letter-spacing: .12em;
-      color: var(--muted); text-transform: uppercase;
-      margin-bottom: -8px;
+    /* Section Label */
+    .label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--vscode-descriptionForeground);
+      padding: 6px 2px 4px;
     }
 
-    /* ── action buttons ────────────────────────── */
-    .actions { display: flex; flex-direction: column; gap: 8px; }
-
+    /* Buttons */
     .btn {
-      position: relative; overflow: hidden;
-      display: flex; align-items: center; gap: 12px;
-      width: 100%; padding: 12px 14px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      color: var(--text);
-      font-family: 'Syne', sans-serif;
-      font-size: 12px; font-weight: 600;
-      cursor: pointer; text-align: left;
-      transition: border-color .2s, box-shadow .2s, transform .12s;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: var(--vscode-button-secondaryBackground, #2a2d2e);
+      border: 1px solid var(--vscode-widget-border, #3c3c3c);
+      border-radius: 6px;
+      color: var(--vscode-foreground);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s, border-color 0.15s;
       outline: none;
-      -webkit-app-region: no-drag;
     }
-    .btn:hover  { transform: translateY(-1px); }
-    .btn:active { transform: translateY(0px) scale(.985); }
-
-    /* glow accent per button */
-    .btn-basic  { --c: var(--accent-1); }
-    .btn-tree   { --c: var(--accent-2); }
-    .btn-full   { --c: var(--accent-3); }
 
     .btn:hover {
-      border-color: var(--c);
-      box-shadow: 0 0 18px color-mix(in srgb, var(--c) 25%, transparent),
-                  inset 0 0 18px color-mix(in srgb, var(--c) 6%, transparent);
+      background: var(--vscode-list-hoverBackground, #2a2d2e);
+      border-color: var(--vscode-focusBorder, #007fd4);
     }
 
-    /* shimmer sweep on hover */
-    .btn::after {
-      content: '';
-      position: absolute; top: 0; left: -100%;
-      width: 60%; height: 100%;
-      background: linear-gradient(105deg, transparent, rgba(255,255,255,.06), transparent);
-      transition: left .35s ease;
+    .btn:active {
+      opacity: 0.85;
     }
-    .btn:hover::after { left: 140%; }
 
     .btn-icon {
-      width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
-      background: color-mix(in srgb, var(--c) 18%, transparent);
-      border: 1px solid color-mix(in srgb, var(--c) 30%, transparent);
-      display: grid; place-items: center;
       font-size: 14px;
-      transition: background .2s;
-    }
-    .btn:hover .btn-icon {
-      background: color-mix(in srgb, var(--c) 28%, transparent);
-    }
-
-    .btn-text { display: flex; flex-direction: column; gap: 1px; }
-    .btn-label { font-size: 12px; font-weight: 700; color: var(--text); }
-    .btn-desc  { font-size: 10px; font-weight: 500; color: var(--text-dim); }
-
-    .btn-arrow {
-      margin-left: auto; font-size: 12px;
-      color: var(--muted);
-      transition: color .2s, transform .2s;
-    }
-    .btn:hover .btn-arrow {
-      color: var(--c);
-      transform: translateX(3px);
+      width: 20px;
+      text-align: center;
+      flex-shrink: 0;
     }
 
-    /* ── status strip ──────────────────────────── */
+    .btn-info {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      flex: 1;
+    }
+
+    .btn-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--vscode-foreground);
+    }
+
+    .btn-desc {
+      font-size: 10px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .btn-basic {
+      border-left: 2px solid #4f8eff;
+    }
+
+    .btn-tree {
+      border-left: 2px solid #3ecf8e;
+    }
+
+    .btn-full {
+      border-left: 2px solid #f97316;
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background: var(--vscode-widget-border, #333);
+      margin: 6px 0;
+    }
+
+    /* Small buttons */
+    .row {
+      display: flex;
+      gap: 6px;
+    }
+
+    .btn-sm {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      padding: 7px 6px;
+      background: var(--vscode-button-secondaryBackground, #2a2d2e);
+      border: 1px solid var(--vscode-widget-border, #3c3c3c);
+      border-radius: 6px;
+      color: var(--vscode-descriptionForeground);
+      font-family: inherit;
+      font-size: 10px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      outline: none;
+    }
+
+    .btn-sm:hover {
+      background: var(--vscode-list-hoverBackground);
+      color: var(--vscode-foreground);
+      border-color: var(--vscode-focusBorder, #007fd4);
+    }
+
+    /* Status */
     .status {
       margin-top: auto;
-      display: flex; align-items: center; gap: 8px;
-      padding: 9px 12px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-    }
-    .status-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--accent-2);
-      box-shadow: 0 0 6px var(--accent-2);
-      animation: pulse 2.4s ease-in-out infinite;
-    }
-    @keyframes pulse {
-      0%,100% { opacity: 1; }
-      50%      { opacity: .35; }
-    }
-    .status-text {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 9px; color: var(--text-dim);
-      letter-spacing: .04em;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      background: var(--vscode-button-secondaryBackground, #2a2d2e);
+      border: 1px solid var(--vscode-widget-border, #3c3c3c);
+      border-radius: 6px;
     }
 
-    /* ── entry animation ───────────────────────── */
-    .btn { animation: slideIn .3s ease both; }
-    .btn:nth-child(1) { animation-delay: .05s; }
-    .btn:nth-child(2) { animation-delay: .10s; }
-    .btn:nth-child(3) { animation-delay: .15s; }
-    @keyframes slideIn {
-      from { opacity: 0; transform: translateY(8px); }
-      to   { opacity: 1; transform: translateY(0);   }
+    .dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #3ecf8e;
+      flex-shrink: 0;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+
+      50% {
+        opacity: 0.3;
+      }
+    }
+
+    .status-text {
+      font-size: 9px;
+      color: var(--vscode-descriptionForeground);
     }
   </style>
 </head>
+
 <body>
-<div class="wrap">
 
   <!-- Header -->
   <div class="header">
-    <div class="logo">⚡</div>
-    <span class="title">AIBridge</span>
-    <span class="badge">BETA</span>
+    <img src="${iconUri}" alt="Logo" class="logo">
+
+    <div class="header-text">
+      <span class="title">ContextFlow</span>
+      <span class="subtitle">AI context generator</span>
+    </div>
   </div>
+
+  <!-- Generate -->
+  <div class="label">Generate</div>
+
+  <button class="btn btn-basic" onclick="send('generateBasic')">
+    <span class="btn-icon">⚡</span>
+
+    <div class="btn-info">
+      <span class="btn-name">Basic</span>
+      <span class="btn-desc">Overview + structure + git</span>
+    </div>
+  </button>
+
+  <button class="btn btn-tree" onclick="send('generateTree')">
+    <span class="btn-icon">🌳</span>
+
+    <div class="btn-info">
+      <span class="btn-name">Tree</span>
+      <span class="btn-desc">Full project file tree</span>
+    </div>
+  </button>
+
+  <button class="btn btn-full" onclick="send('generateFull')">
+    <span class="btn-icon">📄</span>
+
+    <div class="btn-info">
+      <span class="btn-name">Full Code</span>
+      <span class="btn-desc">Select files → export code</span>
+    </div>
+  </button>
 
   <div class="divider"></div>
 
   <!-- Actions -->
-  <span class="section-label">Generate</span>
-  <div class="actions">
+  <div class="label">Actions</div>
 
-    <button class="btn btn-basic" onclick="send('generateBasic')">
-      <div class="btn-icon">⚡</div>
-      <div class="btn-text">
-        <span class="btn-label">Basic</span>
-        <span class="btn-desc">Quick context snapshot</span>
-      </div>
-      <span class="btn-arrow">›</span>
+  <div class="row">
+    <button class="btn-sm" onclick="send('copy')">
+      📋 Copy
     </button>
 
-    <button class="btn btn-tree" onclick="send('generateTree')">
-      <div class="btn-icon">🌳</div>
-      <div class="btn-text">
-        <span class="btn-label">Tree</span>
-        <span class="btn-desc">Project structure map</span>
-      </div>
-      <span class="btn-arrow">›</span>
+    <button class="btn-sm" onclick="send('refresh')">
+      🔄 Refresh
     </button>
-
-    <button class="btn btn-full" onclick="send('generateFull')">
-      <div class="btn-icon">📄</div>
-      <div class="btn-text">
-        <span class="btn-label">Full</span>
-        <span class="btn-desc">Complete codebase export</span>
-      </div>
-      <span class="btn-arrow">›</span>
-    </button>
-
   </div>
 
   <!-- Status -->
   <div class="status">
-    <div class="status-dot"></div>
-    <span class="status-text">extension active · workspace ready</span>
+    <div class="dot"></div>
+    <span class="status-text">ready · contextflow.md</span>
   </div>
 
-</div>
+  <script>
+    const vscode = acquireVsCodeApi();
 
-<script>
-  const vscode = acquireVsCodeApi();
-  function send(cmd) {
-    vscode.postMessage({ command: cmd });
-  }
-</script>
+    function send(cmd) {
+      vscode.postMessage({
+        command: cmd
+      });
+    }
+  </script>
+
 </body>
-</html>
-    `;
+</html>`;
   }
 }

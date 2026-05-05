@@ -26,7 +26,7 @@ export async function getGitHistory(
 
   if (!hasGitRepo(rootPath)) return [];
 
-  const config = vscode.workspace.getConfiguration('aiContextManager');
+  const config = vscode.workspace.getConfiguration('contextflow');
   const logCount = count ?? config.get<number>('gitLogCount') ?? 10;
 
   try {

@@ -1,159 +1,171 @@
 {
-  "name": "ai-context-manager",
-  "displayName": "AI Context Manager v2.0",
-  "description": "Manage and reuse project context across ALL AI tools — ChatGPT, Claude, Gemini, Grok, Perplexity",
-  "version": "0.0.1",
-  "publisher": "nakummeet",
-  "license": "MIT",
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Other",
-    "Snippets"
-  ],
-  "icon": "images/icon.ico",
-  "keywords": [
-    "ai",
-    "context",
-    "chatgpt",
-    "claude",
-    "gemini",
-    "productivity"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/nakummeet/ai-context-manager"
-  },
-  "activationEvents": [
-    "onStartupFinished"
-  ],
-  "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "aibridge.generateBasic",
-        "title": "⚡ Generate Basic Context",
-        "icon": "$(zap)"
-      },
-      {
-        "command": "aibridge.generateTree",
-        "title": "🌳 Generate Project Tree",
-        "icon": "$(list-tree)"
-      },
-      {
-        "command": "aibridge.generateFull",
-        "title": "📄 Generate Full Code Context",
-        "icon": "$(file-code)"
-      },
-      {
-        "command": "aibridge.openPanel",
-        "title": "Open AIBridge Panel",
-        "icon": "images/icon.png"
-      },
-      {
-        "command": "aibridge.copy",
-        "title": "Copy Context",
-        "icon": "$(copy)"
-      },
-      {
-        "command": "aibridge.refresh",
-        "title": "Refresh Context",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "aibridge.refreshFilePicker",
-        "title": "Refresh File List",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "aibridge.selectAll",
-        "title": "Select All Files",
-        "icon": "$(check-all)"
-      },
-      {
-        "command": "aibridge.deselectAll",
-        "title": "Deselect All Files",
-        "icon": "$(close-all)"
-      },
-      {
-        "command": "aibridge.toggleFile",
-        "title": "Toggle File Selection"
-      }
-    ],
-    "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "aibridgeExplorer",
-          "title": "AIBridge",
-          "icon": "$(comment-discussion)"
-        }
-      ]
-    },
-    "views": {
-      "aibridgeExplorer": [
-        {
-          "id": "aibridgeSidebar",
-          "name": "Actions",
-          "type": "webview"
-        },
-        {
-          "id": "aibridgeFiles",
-          "name": "Files"
-        }
-      ]
-    },
-    "menus": {
-      "view/title": [
-        {
-          "command": "aibridge.refreshFilePicker",
-          "when": "view == aibridgeFiles",
-          "group": "navigation@1"
-        },
-        {
-          "command": "aibridge.selectAll",
-          "when": "view == aibridgeFiles",
-          "group": "navigation@2"
-        },
-        {
-          "command": "aibridge.deselectAll",
-          "when": "view == aibridgeFiles",
-          "group": "navigation@3"
-        }
-      ]
-    },
-    "configuration": {
-      "title": "AI Context Manager",
-      "properties": {
-        "aibridge.outputFileName": {
-          "type": "string",
-          "default": "aibridge.md",
-          "description": "Name of the generated context file"
-        },
-        "aibridge.autoOpenAfterGenerate": {
-          "type": "boolean",
-          "default": true,
-          "description": "Open the file after generation"
-        },
-        "aibridge.includeGitHistory": {
-          "type": "boolean",
-          "default": true,
-          "description": "Include recent git commits"
-        }
-      }
+"name": "contextflow",
+"displayName": "ContextFlow",
+"description": "Ask AI about your codebase instantly — no explaining required",
+"version": "0.0.2",
+"publisher": "nakummeet",
+"license": "MIT",
+"engines": {
+"vscode": "^1.85.0"
+},
+"categories": [
+"Other",
+"Snippets"
+],
+"icon": "images/icon.ico",
+"keywords": [
+"ai",
+"context",
+"chatgpt",
+"claude",
+"gemini",
+"developer tools",
+"productivity"
+],
+"repository": {
+"type": "git",
+"url": "https://github.com/nakummeet/contextflow"
+},
+"activationEvents": [
+"onStartupFinished"
+],
+"main": "./out/extension.js",
+
+"contributes": {
+"commands": [
+{
+"command": "contextflow.generateBasic",
+"title": "⚡ Ask AI (Quick Context)",
+"icon": "$(zap)"
+},
+{
+"command": "contextflow.generateTree",
+"title": "🌳 Ask AI (Project Structure)",
+"icon": "$(list-tree)"
+},
+{
+"command": "contextflow.generateFull",
+"title": "📄 Ask AI (Full Codebase)",
+"icon": "$(file-code)"
+},
+{
+"command": "contextflow.copy",
+"title": "Copy Context",
+"icon": "$(copy)"
+},
+{
+"command": "contextflow.refresh",
+"title": "Refresh Context",
+"icon": "$(refresh)"
+},
+{
+"command": "contextflow.refreshFilePicker",
+"title": "Refresh File List",
+"icon": "$(refresh)"
+},
+{
+"command": "contextflow.selectAll",
+"title": "Select All Files",
+"icon": "$(check-all)"
+},
+{
+"command": "contextflow.deselectAll",
+"title": "Deselect All Files",
+"icon": "$(close-all)"
+},
+{
+"command": "contextflow.toggleFile",
+"title": "Toggle File Selection"
+}
+],
+
+
+"viewsContainers": {
+  "activitybar": [
+    {
+      "id": "contextflowExplorer",
+      "title": "ContextFlow",
+      "icon": "$(comment-discussion)"
     }
-  },
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
-  },
-  "devDependencies": {
-    "@types/node": "^20.19.39",
-    "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0"
-  },
-  "dependencies": {
-    "@vscode/vsce": "^3.9.1"
+  ]
+},
+
+"views": {
+  "contextflowExplorer": [
+    {
+      "id": "contextflowSidebar",
+      "name": "Actions",
+      "type": "webview"
+    },
+    {
+      "id": "contextflowFiles",
+      "name": "Files"
+    }
+  ]
+},
+
+"menus": {
+  "view/title": [
+    {
+      "command": "contextflow.refreshFilePicker",
+      "when": "view == contextflowFiles",
+      "group": "navigation@1"
+    },
+    {
+      "command": "contextflow.selectAll",
+      "when": "view == contextflowFiles",
+      "group": "navigation@2"
+    },
+    {
+      "command": "contextflow.deselectAll",
+      "when": "view == contextflowFiles",
+      "group": "navigation@3"
+    }
+  ]
+},
+
+"configuration": {
+  "title": "ContextFlow",
+  "properties": {
+    "contextflow.outputFileName": {
+      "type": "string",
+      "default": "contextflow.md",
+      "description": "Name of the generated context file"
+    },
+    "contextflow.autoOpenAfterGenerate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Open the file after generation"
+    },
+    "contextflow.includeGitHistory": {
+      "type": "boolean",
+      "default": true,
+      "description": "Include recent git commits"
+    },
+    "contextflow.autoOpenAI": {
+      "type": "boolean",
+      "default": true,
+      "description": "Automatically open ChatGPT after generating context"
+    }
   }
+}
+
+
+},
+
+"scripts": {
+"vscode:prepublish": "npm run compile",
+"compile": "tsc -p ./",
+"watch": "tsc -watch -p ./"
+},
+
+"devDependencies": {
+"@types/node": "^20.19.39",
+"@types/vscode": "^1.85.0",
+"typescript": "^5.3.0"
+},
+
+"dependencies": {
+"@vscode/vsce": "^3.9.1"
+}
 }

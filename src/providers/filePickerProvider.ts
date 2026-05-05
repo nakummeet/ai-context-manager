@@ -17,20 +17,16 @@ export class FileItem extends vscode.TreeItem {
     super(label, state);
     this.command = isDirectory
       ? undefined
-      : { command: 'aibridge.toggleFile', title: 'Toggle', arguments: [this] };
+      : { command: 'contextflow.toggleFile', title: 'Toggle', arguments: [this] };
     this.updateUI();
   }
 
   updateUI(): void {
     if (this.isDirectory) {
-      this.iconPath = new vscode.ThemeIcon(
-        this.isChecked ? 'folder-opened' : 'folder'
-      );
+      this.iconPath = new vscode.ThemeIcon(this.isChecked ? 'folder-opened' : 'folder');
       this.description = this.isChecked ? '✓' : '';
     } else {
-      this.iconPath = new vscode.ThemeIcon(
-        this.isChecked ? 'check' : 'file'
-      );
+      this.iconPath = new vscode.ThemeIcon(this.isChecked ? 'check' : 'file');
       this.description = this.isChecked ? '✓' : '';
     }
     this.tooltip = this.isChecked
@@ -48,7 +44,6 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
 
   constructor(private root: string) {}
 
-  /** Rebuild the tree from filesystem */
   refresh(): void {
     this.roots = [];
     this._change.fire();
@@ -68,7 +63,6 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
     return e.children;
   }
 
-  /** Toggle a single file or entire folder on/off */
   toggle(item: FileItem): void {
     if (item.isDirectory) {
       this.setDir(item, !item.isChecked);
@@ -82,27 +76,23 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
     this._change.fire();
   }
 
-  /** Select every non-binary file */
   selectAll(): void {
     this.setAll(this.roots, true);
     this._change.fire();
   }
 
-  /** Deselect everything */
   deselectAll(): void {
     this.selected.clear();
     this.setAll(this.roots, false);
     this._change.fire();
   }
 
-  /** Return absolute paths of all selected files */
   getSelected(): string[] {
     return Array.from(this.selected).filter(p => {
       try { return fs.statSync(p).isFile(); } catch { return false; }
     });
   }
 
-  /** Count of selected files */
   getSelectedCount(): number {
     return this.selected.size;
   }
@@ -151,7 +141,6 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
       return [];
     }
 
-    // Directories first, then alphabetical
     entries.sort((a, b) => {
       if (a.isDirectory() === b.isDirectory()) return a.name.localeCompare(b.name);
       return a.isDirectory() ? -1 : 1;
@@ -161,28 +150,17 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
 
     for (const e of entries) {
       if (getIgnoredFolders().includes(e.name)) continue;
-      if (
-        e.name.startsWith('.') &&
-        e.name !== '.gitignore' &&
-        !e.name.startsWith('.env')
-      ) continue;
+      if (e.name.startsWith('.') && e.name !== '.gitignore' && !e.name.startsWith('.env')) continue;
 
       const full = path.join(dir, e.name);
 
       if (e.isDirectory()) {
-        const item = new FileItem(
-          full, true, e.name,
-          vscode.TreeItemCollapsibleState.Collapsed
-        );
+        const item = new FileItem(full, true, e.name, vscode.TreeItemCollapsibleState.Collapsed);
         item.children = this.build(full, depth + 1);
         items.push(item);
       } else {
-        const item = new FileItem(
-          full, false, e.name,
-          vscode.TreeItemCollapsibleState.None
-        );
+        const item = new FileItem(full, false, e.name, vscode.TreeItemCollapsibleState.None);
 
-        // Mark binary files clearly — not selectable
         if (isBinaryOrLockFile(full)) {
           item.iconPath = new vscode.ThemeIcon('circle-slash');
           item.description = 'skipped — binary';

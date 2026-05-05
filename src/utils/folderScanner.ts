@@ -27,14 +27,14 @@ const SKIP_EXTENSIONS = new Set([
 ]);
 
 export function getIgnoredFolders(): string[] {
-  const config = vscode.workspace.getConfiguration('aiContextManager'); // ✅ fixed
+  const config = vscode.workspace.getConfiguration('contextflow'); // ✅ fixed
   return config.get<string[]>('ignoredFolders') ?? [
     'node_modules', '.git', 'dist', 'build', '.next', 'out'
   ];
 }
 
 export function getMaxDepth(): number {
-  const config = vscode.workspace.getConfiguration('aiContextManager'); // ✅ fixed
+  const config = vscode.workspace.getConfiguration('contextflow'); // ✅ fixed
   return config.get<number>('maxDepth') ?? 4;
 }
 

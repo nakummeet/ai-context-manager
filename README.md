@@ -1,16 +1,16 @@
-# AIBridge — AI Context Builder
+# ContextFlow — AI Context Builder
 
 > 🚀 Generate AI-ready project context once — reuse it across ChatGPT, Claude, Gemini, Grok, Perplexity, and more.
 
 ---
 
-## 🧠 What is AIBridge?
+## 🧠 What is ContextFlow?
 
-AIBridge analyzes your codebase and generates a structured Markdown file that helps AI tools instantly understand your project — without you repeatedly explaining it.
+ContextFlow analyzes your codebase and generates a structured Markdown file that helps AI tools instantly understand your project — without you repeatedly explaining it.
 
 ---
 
-## ✨ Features
+## ✨ Features`
 
 ### 🔍 Smart Project Analysis
 - Detects tech stack automatically
@@ -18,59 +18,58 @@ AIBridge analyzes your codebase and generates a structured Markdown file that he
 - Identifies key files and scripts
 
 ### 🌳 Multiple Output Modes
-- **Basic** — Overview + structure + git history  
-- **Project Tree** — Visual architecture with relationships  
-- **Full Code** — Includes complete file contents  
+- **Basic** — Overview + structure + git history
+- **Project Tree** — Visual architecture with file relationships
+- **Full Code** — Includes complete file contents
 
 ### 📋 AI-Ready Output
-- Generates structured `.md` file optimized for AI tools  
-- Clean formatting with headings, tables, and sections  
+- Generates a structured `contextflow.md` file optimized for AI tools
+- Clean formatting with headings, tables, and sections
 
 ### 📁 File Selection
-- Choose specific files to include  
-- Perfect for sharing only relevant parts  
+- Choose specific files to include
+- Perfect for sharing only relevant parts
 
 ### 🕐 Git Insights
-- Includes recent commits  
-- Helps AI understand development progress  
+- Includes recent commits
+- Helps AI understand development progress
 
 ### ⚡ Productivity Features
-- One-click generation  
-- Copy to clipboard  
-- Auto-refresh on file changes  
+- One-click generation
+- Copy to clipboard
+- Auto-refresh on file save
 
 ---
 
 ## 🚀 Quick Start
 
-1. Open your project in VS Code  
-2. Open the **AIBridge panel (left sidebar)**  
+1. Open your project in VS Code
+2. Open the **ContextFlow panel** (left sidebar)
 3. Choose a mode:
-   - ⚡ Basic  
-   - 🌳 Project Tree  
-   - 📄 Full Code  
-4. Generate your context file  
-5. Paste it into any AI tool  
+   - ⚡ Basic
+   - 🌳 Project Tree
+   - 📄 Full Code
+4. Generate your context file
+5. Paste it into any AI tool
 
 ---
 
 ## 🧩 Example Use Case
 
-Instead of typing:
+Instead of typing the same explanation every time:
 
 ```txt
-This is my project... it uses HTML, CSS, JS...
+This is my project... it uses Express, MongoDB, JWT auth...
+```
+
+ContextFlow generates it all automatically — structured, clean, and AI-ready.
 
 **Made with ❤️ for developers who are tired of re-explaining their stack.**
 
-```
-
 ---
 
-# 👤 Author
+## 👤 Author
 
-Meet Nakum\
-Computer Engineering Student\
+Meet Nakum  
+Computer Engineering Student  
 Frontend & Web Development Enthusiast
-
----
