@@ -8,7 +8,7 @@ import { createStatusBar } from './statusBar';
 import { registerFileWatcher, disposeFileWatcher } from './utils/fileWatcher';
 import { opencontextflowPanel } from './ui/webviewPanel';
 import { SidebarPanelProvider } from './ui/SidebarPanelProvider';
-
+// test
 export function activate(context: vscode.ExtensionContext): void {
   console.log('contextflow v2.0 activated.');
 
