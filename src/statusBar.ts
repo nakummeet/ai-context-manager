@@ -8,9 +8,9 @@ export function createStatusBar(context: vscode.ExtensionContext): vscode.Status
     100
   );
 
-  statusBarItem.text = '$(comment-discussion) ContextFlow';
-  statusBarItem.tooltip = 'Open ContextFlow panel';
-  statusBarItem.command = 'contextflow.openPanel';
+  statusBarItem.text = '$(comment-discussion) AICodeBridge';
+  statusBarItem.tooltip = 'Open AICodeBridge panel';
+  statusBarItem.command = 'aicodebrdige.openPanel';
   statusBarItem.show();
 
   context.subscriptions.push(statusBarItem);

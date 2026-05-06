@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
 
-export function opencontextflowPanel(context: vscode.ExtensionContext) {
+export function openAICodeBridgePanel(context: vscode.ExtensionContext) {
   const panel = vscode.window.createWebviewPanel(
-    'contextflowPanel',
-    'ContextFlow',
+    'aicodebridge-panel',
+    'AICodeBridge',
     vscode.ViewColumn.One,
     { enableScripts: true }
   );
@@ -13,13 +13,13 @@ export function opencontextflowPanel(context: vscode.ExtensionContext) {
   panel.webview.onDidReceiveMessage(async (msg) => {
     switch (msg.command) {
       case 'basic':
-        vscode.commands.executeCommand('contextflow.generateBasic');
+        vscode.commands.executeCommand('aicodebrdige.generateBasic');
         break;
       case 'tree':
-        vscode.commands.executeCommand('contextflow.generateTree');
+        vscode.commands.executeCommand('aicodebrdige.generateTree');
         break;
       case 'full':
-        vscode.commands.executeCommand('contextflow.generateFull');
+        vscode.commands.executeCommand('aicodebrdige.generateFull');
         break;
     }
   });
@@ -53,7 +53,7 @@ function getHtml(): string {
   </head>
   <body>
 
-    <h2>ContextFlow</h2>
+    <h2>AICodeBridge</h2>
 
     <button class="basic" onclick="send('basic')">⚡ Generate Basic</button>
     <button class="tree" onclick="send('tree')">🌳 Generate Tree</button>

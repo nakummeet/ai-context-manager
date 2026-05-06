@@ -1,7 +1,7 @@
 {
-"name": "contextflow",
-"displayName": "ContextFlow",
-"description": "Ask AI about your codebase instantly — no explaining required",
+"name": "aicodebrdige",
+"displayName": "AICodeBridge",
+"description": "Bridge your codebase to any AI tool instantly — no explaining required",
 "version": "0.0.2",
 "publisher": "nakummeet",
 "license": "MIT",
@@ -24,7 +24,7 @@
 ],
 "repository": {
 "type": "git",
-"url": "https://github.com/nakummeet/contextflow"
+"url": "https://github.com/nakummeet/aicodebrdige"
 },
 "activationEvents": [
 "onStartupFinished"
@@ -34,47 +34,47 @@
 "contributes": {
 "commands": [
 {
-"command": "contextflow.generateBasic",
+"command": "aicodebrdige.generateBasic",
 "title": "⚡ Ask AI (Quick Context)",
 "icon": "$(zap)"
 },
 {
-"command": "contextflow.generateTree",
+"command": "aicodebrdige.generateTree",
 "title": "🌳 Ask AI (Project Structure)",
 "icon": "$(list-tree)"
 },
 {
-"command": "contextflow.generateFull",
+"command": "aicodebrdige.generateFull",
 "title": "📄 Ask AI (Full Codebase)",
 "icon": "$(file-code)"
 },
 {
-"command": "contextflow.copy",
+"command": "aicodebrdige.copy",
 "title": "Copy Context",
 "icon": "$(copy)"
 },
 {
-"command": "contextflow.refresh",
+"command": "aicodebrdige.refresh",
 "title": "Refresh Context",
 "icon": "$(refresh)"
 },
 {
-"command": "contextflow.refreshFilePicker",
+"command": "aicodebrdige.refreshFilePicker",
 "title": "Refresh File List",
 "icon": "$(refresh)"
 },
 {
-"command": "contextflow.selectAll",
+"command": "aicodebrdige.selectAll",
 "title": "Select All Files",
 "icon": "$(check-all)"
 },
 {
-"command": "contextflow.deselectAll",
+"command": "aicodebrdige.deselectAll",
 "title": "Deselect All Files",
 "icon": "$(close-all)"
 },
 {
-"command": "contextflow.toggleFile",
+"command": "aicodebrdige.toggleFile",
 "title": "Toggle File Selection"
 }
 ],
@@ -83,22 +83,22 @@
 "viewsContainers": {
   "activitybar": [
     {
-      "id": "contextflowExplorer",
-      "title": "ContextFlow",
+      "id": "aicodebridge-explorer",
+      "title": "AICodeBridge",
       "icon": "$(comment-discussion)"
     }
   ]
 },
 
 "views": {
-  "contextflowExplorer": [
+  "aicodebridge-explorer": [
     {
-      "id": "contextflowSidebar",
+      "id": "aicodebridge-sidebar",
       "name": "Actions",
       "type": "webview"
     },
     {
-      "id": "contextflowFiles",
+      "id": "aicodebridge-files",
       "name": "Files"
     }
   ]
@@ -107,42 +107,42 @@
 "menus": {
   "view/title": [
     {
-      "command": "contextflow.refreshFilePicker",
-      "when": "view == contextflowFiles",
+      "command": "aicodebrdige.refreshFilePicker",
+      "when": "view == aicodebridge-files",
       "group": "navigation@1"
     },
     {
-      "command": "contextflow.selectAll",
-      "when": "view == contextflowFiles",
+      "command": "aicodebrdige.selectAll",
+      "when": "view == aicodebridge-files",
       "group": "navigation@2"
     },
     {
-      "command": "contextflow.deselectAll",
-      "when": "view == contextflowFiles",
+      "command": "aicodebrdige.deselectAll",
+      "when": "view == aicodebridge-files",
       "group": "navigation@3"
     }
   ]
 },
 
 "configuration": {
-  "title": "ContextFlow",
+  "title": "AICodeBridge",
   "properties": {
-    "contextflow.outputFileName": {
+    "aicodebrdige.outputFileName": {
       "type": "string",
-      "default": "contextflow.md",
+      "default": "aicodebrdige.md",
       "description": "Name of the generated context file"
     },
-    "contextflow.autoOpenAfterGenerate": {
+    "aicodebrdige.autoOpenAfterGenerate": {
       "type": "boolean",
       "default": true,
       "description": "Open the file after generation"
     },
-    "contextflow.includeGitHistory": {
+    "aicodebrdige.includeGitHistory": {
       "type": "boolean",
       "default": true,
       "description": "Include recent git commits"
     },
-    "contextflow.autoOpenAI": {
+    "aicodebrdige.autoOpenAI": {
       "type": "boolean",
       "default": true,
       "description": "Automatically open ChatGPT after generating context"

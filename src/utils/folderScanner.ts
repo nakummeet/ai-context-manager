@@ -11,7 +11,7 @@ export interface FolderNode {
 
 export interface ScanResult {
   tree: FolderNode[];
-  allFiles: string[]; // ✅ restored
+  allFiles: string[];
   keyFiles: string[];
   totalFileCount: number;
 }
@@ -27,14 +27,14 @@ const SKIP_EXTENSIONS = new Set([
 ]);
 
 export function getIgnoredFolders(): string[] {
-  const config = vscode.workspace.getConfiguration('contextflow'); // ✅ fixed
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
   return config.get<string[]>('ignoredFolders') ?? [
     'node_modules', '.git', 'dist', 'build', '.next', 'out'
   ];
 }
 
 export function getMaxDepth(): number {
-  const config = vscode.workspace.getConfiguration('contextflow'); // ✅ fixed
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
   return config.get<number>('maxDepth') ?? 4;
 }
 
@@ -85,7 +85,6 @@ export function scanWorkspace(rootPath: string): ScanResult {
           children: buildTree(full, depth + 1),
           relativePath: rel
         });
-
       } else {
         const ext = path.extname(entry.name).toLowerCase();
         if (SKIP_EXTENSIONS.has(ext)) continue;

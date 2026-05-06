@@ -10,15 +10,15 @@ export async function refreshContext(): Promise<void> {
   const workspaceFolders = vscode.workspace.workspaceFolders;
 
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showErrorMessage('ContextFlow: No folder open. Open a project first.');
+    vscode.window.showErrorMessage('AICodeBridge: No folder open. Open a project first.');
     return;
   }
 
   const rootUri = workspaceFolders[0].uri;
   const rootPath = rootUri.fsPath;
 
-  const config = vscode.workspace.getConfiguration('contextflow');
-  const outputFileName = config.get<string>('outputFileName') ?? 'contextflow.md';
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
+  const outputFileName = config.get<string>('outputFileName') ?? 'aicodebrdige.md';
   const includeGit = config.get<boolean>('includeGitHistory') ?? true;
 
   try {
@@ -28,7 +28,7 @@ export async function refreshContext(): Promise<void> {
     try {
       techStack = detectTechStack(rootPath);
     } catch (e) {
-      console.log('ContextFlow: Tech stack detection failed:', e);
+      console.log('AICodeBridge: Tech stack detection failed:', e);
     }
 
     let gitCommits: import('../utils/gitHelper').GitCommit[] = [];
@@ -36,7 +36,7 @@ export async function refreshContext(): Promise<void> {
       try {
         gitCommits = await getGitHistory(rootPath);
       } catch (e) {
-        console.log('ContextFlow: Git fetch failed:', e);
+        console.log('AICodeBridge: Git fetch failed:', e);
       }
     }
 
@@ -54,12 +54,12 @@ export async function refreshContext(): Promise<void> {
     const fileUri = vscode.Uri.joinPath(rootUri, outputFileName);
     await vscode.workspace.fs.writeFile(fileUri, Buffer.from(markdown, 'utf-8'));
 
-    flashStatusBar('$(check) ContextFlow refreshed', `${outputFileName} updated`, 3000);
-    vscode.window.showInformationMessage(`✅ ContextFlow: ${outputFileName} refreshed.`);
+    flashStatusBar('$(check) AICodeBridge refreshed', `${outputFileName} updated`, 3000);
+    vscode.window.showInformationMessage(`✅ AICodeBridge: ${outputFileName} refreshed.`);
 
   } catch (err) {
-    console.error('ContextFlow: Refresh failed:', err);
-    flashStatusBar('$(warning) ContextFlow failed', String(err), 4000);
-    vscode.window.showErrorMessage('ContextFlow: Failed to refresh context. Check logs.');
+    console.error('AICodeBridge: Refresh failed:', err);
+    flashStatusBar('$(warning) AICodeBridge failed', String(err), 4000);
+    vscode.window.showErrorMessage('AICodeBridge: Failed to refresh context. Check logs.');
   }
 }

@@ -6,11 +6,11 @@ import { showDiff } from './commands/showDiff';
 import { FilePickerProvider, FileItem } from './providers/filePickerProvider';
 import { createStatusBar } from './statusBar';
 import { registerFileWatcher, disposeFileWatcher } from './utils/fileWatcher';
-import { opencontextflowPanel } from './ui/webviewPanel';
+import { openAICodeBridgePanel } from './ui/webviewPanel';
 import { SidebarPanelProvider } from './ui/SidebarPanelProvider';
-// test
+
 export function activate(context: vscode.ExtensionContext): void {
-  console.log('contextflow v2.0 activated.');
+  console.log('AICodeBridge v2.0 activated.');
 
   const statusBar = createStatusBar(context);
 
@@ -21,14 +21,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(
-      'contextflowSidebar',
+      'aicodebridge-sidebar',
       provider
     )
   );
 
   // 🌳 Tree View
   context.subscriptions.push(
-    vscode.window.createTreeView('contextflowFiles', {
+    vscode.window.createTreeView('aicodebridge-files', {
       treeDataProvider: picker,
       showCollapseAll: true,
     })
@@ -36,26 +36,26 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // ⚡ BASIC
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.generateBasic', async () => {
+    vscode.commands.registerCommand('aicodebrdige.generateBasic', async () => {
       await generateContext([], 'basic');
     })
   );
 
   // 🌳 TREE
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.generateTree', async () => {
+    vscode.commands.registerCommand('aicodebrdige.generateTree', async () => {
       await generateContext([], 'tree');
     })
   );
 
   // 📄 FULL (requires selection)
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.generateFull', async () => {
+    vscode.commands.registerCommand('aicodebrdige.generateFull', async () => {
       const files = picker.getSelected();
 
       if (files.length === 0) {
         vscode.window.showWarningMessage(
-          'contextflow: Select files for Full mode.'
+          'AICodeBridge: Select files for Full mode.'
         );
         return;
       }
@@ -66,55 +66,55 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // 📋 Copy
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.copy', async () => {
+    vscode.commands.registerCommand('aicodebrdige.copy', async () => {
       await copyContext();
     })
   );
 
   // 🔄 Refresh
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.refresh', async () => {
+    vscode.commands.registerCommand('aicodebrdige.refresh', async () => {
       await refreshContext();
     })
   );
 
   // 🔍 Diff
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.showDiff', async () => {
+    vscode.commands.registerCommand('aicodebrdige.showDiff', async () => {
       await showDiff();
     })
   );
 
   // 📁 File selection
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.toggleFile', (item: FileItem) => {
+    vscode.commands.registerCommand('aicodebrdige.toggleFile', (item: FileItem) => {
       picker.toggle(item);
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.selectAll', () => {
+    vscode.commands.registerCommand('aicodebrdige.selectAll', () => {
       picker.selectAll();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.deselectAll', () => {
+    vscode.commands.registerCommand('aicodebrdige.deselectAll', () => {
       picker.deselectAll();
     })
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.refreshFilePicker', () => {
+    vscode.commands.registerCommand('aicodebrdige.refreshFilePicker', () => {
       picker.refresh();
-      vscode.window.showInformationMessage('contextflow: File list refreshed.');
+      vscode.window.showInformationMessage('AICodeBridge: File list refreshed.');
     })
   );
 
   // 🚀 Webview Panel
   context.subscriptions.push(
-    vscode.commands.registerCommand('contextflow.openPanel', () => {
-      opencontextflowPanel(context);
+    vscode.commands.registerCommand('aicodebrdige.openPanel', () => {
+      openAICodeBridgePanel(context);
     })
   );
 
@@ -130,25 +130,25 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  // 👋 Welcome message (updated)
-  const shown = context.globalState.get<boolean>('contextflow.welcome');
+  // 👋 Welcome message
+  const shown = context.globalState.get<boolean>('aicodebrdige.welcome');
   if (!shown) {
     vscode.window
       .showInformationMessage(
-        '👋 contextflow is ready! Use sidebar buttons or open panel.',
+        '👋 AICodeBridge is ready! Use sidebar buttons or open panel.',
         'Open Panel'
       )
       .then(answer => {
         if (answer === 'Open Panel') {
-          vscode.commands.executeCommand('contextflow.openPanel');
+          vscode.commands.executeCommand('aicodebrdige.openPanel');
         }
       });
 
-    context.globalState.update('contextflow.welcome', true);
+    context.globalState.update('aicodebrdige.welcome', true);
   }
 }
 
 export function deactivate(): void {
   disposeFileWatcher();
-  console.log('contextflow deactivated.');
+  console.log('AICodeBridge deactivated.');
 }

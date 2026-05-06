@@ -1,16 +1,18 @@
-# ContextFlow — AI Context Builder
+# AICodeBridge — AI Context Builder
 
-> 🚀 Generate AI-ready project context once — reuse it across ChatGPT, Claude, Gemini, Grok, Perplexity, and more.
-
----
-
-## 🧠 What is ContextFlow?
-
-ContextFlow analyzes your codebase and generates a structured Markdown file that helps AI tools instantly understand your project — without you repeatedly explaining it.
+> 🚀 Bridge your codebase to any AI tool instantly — no explaining required. Works with ChatGPT, Claude, Gemini, Grok, Perplexity, and more.
 
 ---
 
-## ✨ Features`
+🔗 VS Code Marketplace: https://marketplace.visualstudio.com/items?itemName=nakummeet.aicodebrdige
+
+## 🧠 What is AICodeBridge?
+
+AICodeBridge analyzes your codebase and generates a structured Markdown file that helps AI tools instantly understand your project — without you repeatedly explaining it.
+
+---
+
+## ✨ Features
 
 ### 🔍 Smart Project Analysis
 - Detects tech stack automatically
@@ -23,7 +25,7 @@ ContextFlow analyzes your codebase and generates a structured Markdown file that
 - **Full Code** — Includes complete file contents
 
 ### 📋 AI-Ready Output
-- Generates a structured `contextflow.md` file optimized for AI tools
+- Generates a structured `aicodebrdige.md` file optimized for AI tools
 - Clean formatting with headings, tables, and sections
 
 ### 📁 File Selection
@@ -44,7 +46,7 @@ ContextFlow analyzes your codebase and generates a structured Markdown file that
 ## 🚀 Quick Start
 
 1. Open your project in VS Code
-2. Open the **ContextFlow panel** (left sidebar)
+2. Open the **AICodeBridge panel** (left sidebar)
 3. Choose a mode:
    - ⚡ Basic
    - 🌳 Project Tree
@@ -62,7 +64,7 @@ Instead of typing the same explanation every time:
 This is my project... it uses Express, MongoDB, JWT auth...
 ```
 
-ContextFlow generates it all automatically — structured, clean, and AI-ready.
+AICodeBridge generates it all automatically — structured, clean, and AI-ready.
 
 **Made with ❤️ for developers who are tired of re-explaining their stack.**
 
@@ -70,6 +72,6 @@ ContextFlow generates it all automatically — structured, clean, and AI-ready.
 
 ## 👤 Author
 
-Meet Nakum  
-Computer Engineering Student  
-Frontend & Web Development Enthusiast
+Meet Nakum
+Computer Engineering Student
+Flutter & MERN stack developer

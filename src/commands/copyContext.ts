@@ -6,24 +6,24 @@ import { flashStatusBar } from '../statusBar';
 export async function copyContext(): Promise<void> {
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders?.length) {
-    vscode.window.showErrorMessage('ContextFlow: Please open a folder first.');
+    vscode.window.showErrorMessage('AICodeBridge: Please open a folder first.');
     return;
   }
 
   const rootPath = workspaceFolders[0].uri.fsPath;
-  const config = vscode.workspace.getConfiguration('contextflow');
-  const outputFileName = config.get<string>('outputFileName') ?? 'contextflow.md';
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
+  const outputFileName = config.get<string>('outputFileName') ?? 'aicodebrdige.md';
   const outputFilePath = path.join(rootPath, outputFileName);
 
   if (!fs.existsSync(outputFilePath)) {
     const answer = await vscode.window.showWarningMessage(
-      `ContextFlow: ${outputFileName} does not exist yet.`,
+      `AICodeBridge: ${outputFileName} does not exist yet.`,
       'Generate Now',
       'Cancel'
     );
 
     if (answer === 'Generate Now') {
-      await vscode.commands.executeCommand('contextflow.generateBasic');
+      await vscode.commands.executeCommand('aicodebrdige.generateBasic');
       if (!fs.existsSync(outputFilePath)) return;
     } else {
       return;
@@ -35,7 +35,7 @@ export async function copyContext(): Promise<void> {
     content = fs.readFileSync(outputFilePath, 'utf-8');
   } catch (err) {
     vscode.window.showErrorMessage(
-      `ContextFlow: Could not read ${outputFileName} — ${String(err)}`
+      `AICodeBridge: Could not read ${outputFileName} — ${String(err)}`
     );
     return;
   }
@@ -46,7 +46,7 @@ export async function copyContext(): Promise<void> {
     await vscode.env.clipboard.writeText(clipboardContent);
   } catch (err) {
     vscode.window.showErrorMessage(
-      `ContextFlow: Failed to copy to clipboard — ${String(err)}`
+      `AICodeBridge: Failed to copy to clipboard — ${String(err)}`
     );
     return;
   }
@@ -58,6 +58,6 @@ export async function copyContext(): Promise<void> {
   );
 
   vscode.window.showInformationMessage(
-    '📋 ContextFlow: Context copied! Paste into ChatGPT, Claude, Gemini, or any AI tool.'
+    '📋 AICodeBridge: Context copied! Paste into ChatGPT, Claude, Gemini, or any AI tool.'
   );
 }

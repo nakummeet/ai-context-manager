@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 
 export class SidebarPanelProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = 'contextflowSidebar';
+  public static readonly viewType = 'aicodebridge-sidebar';
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -10,7 +10,6 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
       enableScripts: true,
     };
 
-    // ✅ Convert local image path to webview-safe URI
     const iconUri = webviewView.webview.asWebviewUri(
       vscode.Uri.joinPath(
         this.context.extensionUri,
@@ -22,7 +21,7 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(iconUri);
 
     webviewView.webview.onDidReceiveMessage((msg) => {
-      vscode.commands.executeCommand(`contextflow.${msg.command}`);
+      vscode.commands.executeCommand(`aicodebrdige.${msg.command}`);
     });
   }
 
@@ -32,7 +31,7 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ContextFlow</title>
+  <title>AICodeBridge</title>
 
   <style>
     *, *::before, *::after {
@@ -225,13 +224,8 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
     }
 
     @keyframes pulse {
-      0%, 100% {
-        opacity: 1;
-      }
-
-      50% {
-        opacity: 0.3;
-      }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
     .status-text {
@@ -246,9 +240,8 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
   <!-- Header -->
   <div class="header">
     <img src="${iconUri}" alt="Logo" class="logo">
-
     <div class="header-text">
-      <span class="title">ContextFlow</span>
+      <span class="title">AICodeBridge</span>
       <span class="subtitle">AI context generator</span>
     </div>
   </div>
@@ -258,7 +251,6 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
 
   <button class="btn btn-basic" onclick="send('generateBasic')">
     <span class="btn-icon">⚡</span>
-
     <div class="btn-info">
       <span class="btn-name">Basic</span>
       <span class="btn-desc">Overview + structure + git</span>
@@ -267,7 +259,6 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
 
   <button class="btn btn-tree" onclick="send('generateTree')">
     <span class="btn-icon">🌳</span>
-
     <div class="btn-info">
       <span class="btn-name">Tree</span>
       <span class="btn-desc">Full project file tree</span>
@@ -276,7 +267,6 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
 
   <button class="btn btn-full" onclick="send('generateFull')">
     <span class="btn-icon">📄</span>
-
     <div class="btn-info">
       <span class="btn-name">Full Code</span>
       <span class="btn-desc">Select files → export code</span>
@@ -292,7 +282,6 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
     <button class="btn-sm" onclick="send('copy')">
       📋 Copy
     </button>
-
     <button class="btn-sm" onclick="send('refresh')">
       🔄 Refresh
     </button>
@@ -301,16 +290,13 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
   <!-- Status -->
   <div class="status">
     <div class="dot"></div>
-    <span class="status-text">ready · contextflow.md</span>
+    <span class="status-text">ready · aicodebrdige.md</span>
   </div>
 
   <script>
     const vscode = acquireVsCodeApi();
-
     function send(cmd) {
-      vscode.postMessage({
-        command: cmd
-      });
+      vscode.postMessage({ command: cmd });
     }
   </script>
 

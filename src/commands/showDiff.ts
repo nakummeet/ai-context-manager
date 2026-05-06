@@ -8,7 +8,7 @@ let channel: vscode.OutputChannel | null = null;
 
 function getChannel(): vscode.OutputChannel {
   if (!channel) {
-    channel = vscode.window.createOutputChannel('ContextFlow Diff');
+    channel = vscode.window.createOutputChannel('AICodeBridge Diff');
   }
   return channel;
 }
@@ -16,17 +16,17 @@ function getChannel(): vscode.OutputChannel {
 export async function showDiff(): Promise<void> {
   const ws = vscode.workspace.workspaceFolders;
   if (!ws?.length) {
-    vscode.window.showErrorMessage('ContextFlow: Open a project first.');
+    vscode.window.showErrorMessage('AICodeBridge: Open a project first.');
     return;
   }
 
   const root = ws[0].uri.fsPath;
-  const config = vscode.workspace.getConfiguration('contextflow');
-  const fileName = config.get<string>('outputFileName') ?? 'contextflow.md';
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
+  const fileName = config.get<string>('outputFileName') ?? 'aicodebrdige.md';
   const filePath = path.join(root, fileName);
 
   if (!fs.existsSync(filePath)) {
-    vscode.window.showWarningMessage('ContextFlow: Generate context first.');
+    vscode.window.showWarningMessage('AICodeBridge: Generate context first.');
     return;
   }
 
@@ -62,7 +62,7 @@ export async function showDiff(): Promise<void> {
     if (!exists) deletedFiles.push(f);
   }
 
-  ch.appendLine('==== CONTEXTFLOW DIFF ====');
+  ch.appendLine('==== AICODEBRDIGE DIFF ====');
   ch.appendLine(`Project: ${getProjectName(root)}\n`);
 
   if (newFiles.length) {

@@ -11,7 +11,7 @@ export function registerFileWatcher(
 ): vscode.Disposable {
 
   const disposable = vscode.workspace.onDidSaveTextDocument(async (doc) => {
-    const config = vscode.workspace.getConfiguration('contextflow');
+    const config = vscode.workspace.getConfiguration('aicodebrdige');
     const autoRefresh = config.get<boolean>('autoRefreshOnSave') ?? false;
 
     if (!autoRefresh) return;
@@ -20,7 +20,7 @@ export function registerFileWatcher(
     if (!workspaceFolders?.length) return;
 
     const rootPath = workspaceFolders[0].uri.fsPath;
-    const outputFileName = config.get<string>('outputFileName') ?? 'contextflow.md';
+    const outputFileName = config.get<string>('outputFileName') ?? 'aicodebrdige.md';
     const outputFilePath = path.join(rootPath, outputFileName);
 
     if (doc.uri.fsPath === outputFilePath) return;
@@ -47,18 +47,18 @@ function showUpdateMessage(statusBar: vscode.StatusBarItem, fileName: string): v
   const originalText = statusBar.text;
   const originalTooltip = statusBar.tooltip;
 
-  statusBar.text = '$(sync~spin) ContextFlow updating...';
+  statusBar.text = '$(sync~spin) AICodeBridge updating...';
   statusBar.tooltip = `Regenerating ${fileName}...`;
 
   setTimeout(() => {
-    statusBar.text = '$(check) ContextFlow updated';
+    statusBar.text = '$(check) AICodeBridge updated';
     statusBar.tooltip = `${fileName} was regenerated`;
 
     setTimeout(() => {
       statusBar.text = originalText;
       statusBar.tooltip = originalTooltip instanceof vscode.MarkdownString
         ? originalTooltip
-        : originalTooltip ?? 'Open ContextFlow panel';
+        : originalTooltip ?? 'Open AICodeBridge panel';
     }, 3000);
   }, 1500);
 }

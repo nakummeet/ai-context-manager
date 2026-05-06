@@ -16,12 +16,12 @@ export async function generateContext(
     const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 
     if (!root) {
-      vscode.window.showErrorMessage('ContextFlow: Please open a folder first.');
+      vscode.window.showErrorMessage('AICodeBridge: Please open a folder first.');
       return;
     }
 
-    const cfg = vscode.workspace.getConfiguration('contextflow');
-    const outFileName = cfg.get<string>('outputFileName') ?? 'contextflow.md';
+    const cfg = vscode.workspace.getConfiguration('aicodebrdige');
+    const outFileName = cfg.get<string>('outputFileName') ?? 'aicodebrdige.md';
     const outFile = path.join(root, outFileName);
     const autoOpen = cfg.get<boolean>('autoOpenAfterGenerate') ?? true;
 
@@ -32,7 +32,7 @@ export async function generateContext(
     await vscode.window.withProgress(
       {
         location: vscode.ProgressLocation.Notification,
-        title: `ContextFlow — Generating ${mode}...`,
+        title: `AICodeBridge — Generating ${mode}...`,
         cancellable: false,
       },
       async (progress) => {
@@ -42,7 +42,7 @@ export async function generateContext(
 
         if (scan.totalFileCount > 10000) {
           const ans = await vscode.window.showWarningMessage(
-            `ContextFlow: ${scan.totalFileCount.toLocaleString()} files found. Continue?`,
+            `AICodeBridge: ${scan.totalFileCount.toLocaleString()} files found. Continue?`,
             'Continue',
             'Cancel'
           );
@@ -86,13 +86,13 @@ export async function generateContext(
         };
 
         flashStatusBar(
-          '$(check) ContextFlow generated',
+          '$(check) AICodeBridge generated',
           `${outFileName} ready (${modeNames[mode]} mode)`,
           4000
         );
 
         vscode.window.showInformationMessage(
-          `✅ ContextFlow: Generated in ${modeNames[mode]} mode` +
+          `✅ AICodeBridge: Generated in ${modeNames[mode]} mode` +
           (mode === 'full' && selectedFiles.length > 0
             ? ` — ${selectedFiles.length} file(s)`
             : '')
@@ -101,9 +101,9 @@ export async function generateContext(
     );
 
   } catch (err: any) {
-    console.error('ContextFlow Error:', err);
+    console.error('AICodeBridge Error:', err);
     vscode.window.showErrorMessage(
-      `❌ ContextFlow failed: ${err?.message || 'Unknown error'}`
+      `❌ AICodeBridge failed: ${err?.message || 'Unknown error'}`
     );
   }
 }
