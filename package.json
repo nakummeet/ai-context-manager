@@ -7,7 +7,7 @@
   "license": "MIT",
   "engines": { "vscode": "^1.85.0" },
   "categories": ["Other", "Snippets"],
-  "icon": "images/icon.ico",
+  "icon": "images/icon.png",
   "keywords": ["ai", "context", "chatgpt", "claude", "gemini", "developer tools", "productivity"],
   "repository": { "type": "git", "url": "https://github.com/nakummeet/aibridge" },
   "activationEvents": ["onStartupFinished"],

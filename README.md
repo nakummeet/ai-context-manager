@@ -20,12 +20,7 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 
 ## Demo
 
-<!-- Add your demo video/GIF here -->
-> 📹 **Watch it in action:** *(video coming soon — drop your `.mp4` or GIF link here)*
-
-```
-[Insert your demo video or GIF here]
-```
+![AICodeBridge Demo](images/demo.gif)
 
 ---
 
@@ -128,7 +123,7 @@ All commands are available from the Command Palette (`Ctrl+Shift+P`):
 
 ## Author
 
-**Meet Nakum** — Computer Engineering Student, Flutter & MERN stack developer 
+**Meet Nakum** <br> Computer Engineering Student, Flutter & MERN stack developer 
 
 ---
 

@@ -18,28 +18,40 @@ interface DetectedError {
 
 function getVSCodeErrors(root: string): DetectedError[] {
   const errors: DetectedError[] = [];
+
   for (const [uri, diags] of vscode.languages.getDiagnostics()) {
     if (!uri.fsPath.startsWith(root)) continue;
+
     for (const d of diags) {
       if (
         d.severity !== vscode.DiagnosticSeverity.Error &&
         d.severity !== vscode.DiagnosticSeverity.Warning
-      ) continue;
+      ) {
+        continue;
+      }
+
       errors.push({
         file: path.relative(root, uri.fsPath).replace(/\\/g, '/'),
         line: d.range.start.line + 1,
         message: d.message,
-        severity: d.severity === vscode.DiagnosticSeverity.Error ? 'error' : 'warning',
+        severity:
+          d.severity === vscode.DiagnosticSeverity.Error
+            ? 'error'
+            : 'warning',
       });
+
       if (errors.length >= 20) return errors;
     }
   }
+
   return errors;
 }
 
 function buildErrorSection(root: string): string {
   const errors = getVSCodeErrors(root);
+
   const lines: string[] = ['\n\n---\n\n## 🐛 Errors\n'];
+
   lines.push(`> Auto-scanned: ${new Date().toLocaleString()}\n`);
 
   if (!errors.length) {
@@ -48,11 +60,14 @@ function buildErrorSection(root: string): string {
     lines.push(`**${errors.length} issue(s) found:**\n`);
     lines.push('| File | Line | Type | Message |');
     lines.push('|------|------|------|---------|');
+
     for (const e of errors) {
       lines.push(
-        `| \`${e.file}\` | ${e.line || '-'} | ${e.severity === 'error' ? '❌' : '⚠️'} | ${e.message} |`
+        `| \`${e.file}\` | ${e.line || '-'} | ${e.severity === 'error' ? '❌' : '⚠️'
+        } | ${e.message} |`
       );
     }
+
     lines.push('\n> Paste this file into ChatGPT/Claude to fix errors.\n');
   }
 
@@ -69,7 +84,9 @@ export async function refreshContext(): Promise<void> {
   const workspaceFolders = vscode.workspace.workspaceFolders;
 
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showErrorMessage('AICodeBridge: No folder open. Open a project first.');
+    vscode.window.showErrorMessage(
+      'AICodeBridge: No folder open. Open a project first.'
+    );
     return;
   }
 
@@ -77,53 +94,56 @@ export async function refreshContext(): Promise<void> {
   const rootPath = rootUri.fsPath;
 
   const config = vscode.workspace.getConfiguration('aicodebrdige');
-  const outputFileName = config.get<string>('outputFileName') ?? 'aicodebrdige.md';
-  const includeGit = config.get<boolean>('includeGitHistory') ?? true;
+
+  const outputFileName =
+    config.get<string>('outputFileName') ?? 'aicodebrdige.md';
+
+  const outputFilePath = path.join(rootPath, outputFileName);
 
   try {
-    const scanResult = scanWorkspace(rootPath);
-
-    // FIX 2 side-effect: detectTechStack now always returns TechStack, never null
-    const techStack = detectTechStack(rootPath);
-
-    let gitCommits: import('../utils/gitHelper').GitCommit[] = [];
-    if (includeGit && hasGitRepo(rootPath)) {
-      try {
-        gitCommits = await getGitHistory(rootPath);
-      } catch (e) {
-        console.log('AICodeBridge: Git fetch failed:', e);
-      }
+    if (!fs.existsSync(outputFilePath)) {
+      vscode.window.showWarningMessage(
+        'AICodeBridge: Generate context first.'
+      );
+      return;
     }
 
-    // Build fresh markdown
-    // FIX 4: pass treeFlat so key-file detection works correctly in basic mode
-    let markdown = buildMarkdown({
-      projectName: getProjectName(rootPath),
-      rootPath,
-      techStack,
-      tree: scanResult.tree,
-      keyFiles: scanResult.keyFiles,
-      gitCommits,
-      selectedFiles: [],
-      treeFlat: scanResult.allFiles,
-      mode: 'basic',
-    });
+    // Read existing generated file
+    let markdown = fs.readFileSync(outputFilePath, 'utf-8');
 
-    // Strip any leftover error section (safety)
+    // Remove old error section only
     markdown = stripErrorSection(markdown);
 
-    // Always append fresh error section at the bottom
-    markdown = markdown + buildErrorSection(rootPath);
+    // Append fresh errors
+    markdown += buildErrorSection(rootPath);
 
-    const fileUri = vscode.Uri.joinPath(rootUri, outputFileName);
-    await vscode.workspace.fs.writeFile(fileUri, Buffer.from(markdown, 'utf-8'));
+    await fs.promises.writeFile(
+      outputFilePath,
+      markdown,
+      'utf-8'
+    );
 
-    flashStatusBar('$(check) AICodeBridge refreshed', `${outputFileName} updated`, 3000);
-    vscode.window.showInformationMessage(`✅ AICodeBridge: ${outputFileName} refreshed.`);
+    flashStatusBar(
+      '$(check) AICodeBridge refreshed',
+      `${outputFileName} updated`,
+      3000
+    );
+
+    vscode.window.showInformationMessage(
+      `✅ AICodeBridge: ${outputFileName} refreshed.`
+    );
 
   } catch (err) {
     console.error('AICodeBridge: Refresh failed:', err);
-    flashStatusBar('$(warning) AICodeBridge failed', String(err), 4000);
-    vscode.window.showErrorMessage('AICodeBridge: Failed to refresh context. Check logs.');
+
+    flashStatusBar(
+      '$(warning) AICodeBridge failed',
+      String(err),
+      4000
+    );
+
+    vscode.window.showErrorMessage(
+      'AICodeBridge: Failed to refresh context. Check logs.'
+    );
   }
 }

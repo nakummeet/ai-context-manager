@@ -14,7 +14,7 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
       vscode.Uri.joinPath(
         this.context.extensionUri,
         'images',
-        'icon.ico'
+        'icon.png'
       )
     );
 
