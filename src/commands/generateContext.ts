@@ -7,6 +7,65 @@ import { getGitHistory } from '../utils/gitHelper';
 import { buildMarkdown, GenerateMode } from '../utils/markdownBuilder';
 import { flashStatusBar } from '../statusBar';
 
+// ─── Error section helpers ────────────────────────────────────────────────────
+
+interface DetectedError {
+  file: string;
+  line: number;
+  message: string;
+  severity: 'error' | 'warning';
+}
+
+function getVSCodeErrors(root: string): DetectedError[] {
+  const errors: DetectedError[] = [];
+  for (const [uri, diags] of vscode.languages.getDiagnostics()) {
+    if (!uri.fsPath.startsWith(root)) continue;
+    for (const d of diags) {
+      if (
+        d.severity !== vscode.DiagnosticSeverity.Error &&
+        d.severity !== vscode.DiagnosticSeverity.Warning
+      ) continue;
+      errors.push({
+        file: path.relative(root, uri.fsPath).replace(/\\/g, '/'),
+        line: d.range.start.line + 1,
+        message: d.message,
+        severity: d.severity === vscode.DiagnosticSeverity.Error ? 'error' : 'warning',
+      });
+      if (errors.length >= 20) return errors;
+    }
+  }
+  return errors;
+}
+
+function buildErrorSection(root: string): string {
+  const errors = getVSCodeErrors(root);
+  const lines: string[] = ['\n\n---\n\n## 🐛 Errors\n'];
+  lines.push(`> Auto-scanned: ${new Date().toLocaleString()}\n`);
+
+  if (!errors.length) {
+    lines.push('✅ No errors found!\n');
+  } else {
+    lines.push(`**${errors.length} issue(s) found:**\n`);
+    lines.push('| File | Line | Type | Message |');
+    lines.push('|------|------|------|---------|');
+    for (const e of errors) {
+      lines.push(
+        `| \`${e.file}\` | ${e.line || '-'} | ${e.severity === 'error' ? '❌' : '⚠️'} | ${e.message} |`
+      );
+    }
+    lines.push('\n> Paste this file into ChatGPT/Claude to fix errors.\n');
+  }
+
+  return lines.join('\n');
+}
+
+// Strip existing error section from markdown string
+function stripErrorSection(md: string): string {
+  return md.replace(/\n\n---\n\n## 🐛 Errors[\s\S]*$/, '');
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 export async function generateContext(
   selectedFiles: string[] = [],
   mode: GenerateMode = 'basic'
@@ -56,9 +115,10 @@ export async function generateContext(
         const includeGit = cfg.get<boolean>('includeGitHistory') ?? true;
         const gitCommits = includeGit ? await getGitHistory(root) : [];
 
-        progress.report({ message: `Building ${mode} output...`, increment: 30 });
+        progress.report({ message: `Building ${mode} output...`, increment: 20 });
 
-        const md = buildMarkdown({
+        // Build fresh markdown (no error section)
+        let md = buildMarkdown({
           projectName: getProjectName(root),
           rootPath: root,
           techStack,
@@ -69,6 +129,13 @@ export async function generateContext(
           treeFlat: scan.allFiles,
           mode,
         });
+
+        // Strip any leftover error section from buildMarkdown output (safety)
+        md = stripErrorSection(md);
+
+        // Always append fresh error section at the bottom
+        progress.report({ message: 'Scanning errors...', increment: 10 });
+        md = md + buildErrorSection(root);
 
         await fs.promises.writeFile(outFile, md, 'utf-8');
 

@@ -36,16 +36,30 @@ export async function showDiff(): Promise<void> {
 
   const oldContent = fs.readFileSync(filePath, 'utf-8');
 
-  const oldFiles = new Set(
-    oldContent
-      .split('\n')
-      .map(l => l.match(/[├└]── (.+)$/))
-      .filter(Boolean)
-      .map(m => m![1].trim())
-      .filter(f => !f.endsWith('/'))
-  );
+  // FIX 3: extract full relative paths (e.g. "src/index.ts") from the tree,
+  // not just basenames — avoids false matches when two folders have same-named files.
+  const oldFiles = new Set<string>();
+  for (const line of oldContent.split('\n')) {
+    // Match tree connector lines: ├── or └── with optional leading │/space chars
+    const m = line.match(/[├└]── (.+?)\/?\s*$/);
+    if (!m) continue;
+    const name = m[1].trim();
+    if (name === '...') continue;           // depth-truncation placeholder
+    if (name.endsWith('/')) continue;       // directory — skip
+    oldFiles.add(name);
+  }
 
   const scan = scanWorkspace(root);
+
+  // Build a map of basename → full relative paths so we can do accurate matching
+  const currentByBasename = new Map<string, string[]>();
+  for (const absPath of scan.allFiles) {
+    const rel = path.relative(root, absPath).replace(/\\/g, '/');
+    const base = path.basename(rel);
+    if (!currentByBasename.has(base)) currentByBasename.set(base, []);
+    currentByBasename.get(base)!.push(rel);
+  }
+
   const currentFiles = new Set(
     scan.allFiles.map(f => path.relative(root, f).replace(/\\/g, '/'))
   );
@@ -53,13 +67,16 @@ export async function showDiff(): Promise<void> {
   const newFiles: string[] = [];
   const deletedFiles: string[] = [];
 
-  for (const f of currentFiles) {
-    if (!oldFiles.has(path.basename(f))) newFiles.push(f);
+  // Files in current workspace not recorded in old snapshot
+  for (const rel of currentFiles) {
+    const base = path.basename(rel);
+    if (!oldFiles.has(base)) newFiles.push(rel);
   }
 
-  for (const f of oldFiles) {
-    const exists = Array.from(currentFiles).some(cf => path.basename(cf) === f);
-    if (!exists) deletedFiles.push(f);
+  // Files in old snapshot no longer present in current workspace
+  for (const base of oldFiles) {
+    const matches = currentByBasename.get(base);
+    if (!matches || matches.length === 0) deletedFiles.push(base);
   }
 
   ch.appendLine('==== AICODEBRDIGE DIFF ====');

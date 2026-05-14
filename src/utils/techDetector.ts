@@ -132,40 +132,27 @@ function detectFrom(deps: string[], mappings: DepMapping[]): string[] {
 
 /**
  * Detect languages from file existence in the workspace root.
+ * FIX 5: deduped with Set so JavaScript can't appear twice.
  */
 function detectLanguages(rootPath: string, deps: string[]): string[] {
-  const languages: string[] = [];
+  const languages = new Set<string>();
 
-  // 🔥 Static frontend detection
-try {
-  const files = fs.readdirSync(rootPath);
-
-  if (files.some(f => f.endsWith('.html'))) {
-    if (!languages.includes('HTML')) languages.push('HTML');
-  }
-
-  if (files.some(f => f.endsWith('.css'))) {
-    if (!languages.includes('CSS')) languages.push('CSS');
-  }
-
-  if (files.some(f => f.endsWith('.js'))) {
-    if (!languages.includes('JavaScript')) {
-      languages.push('JavaScript');
-    }
-  }
-} catch {}
+  // Static frontend detection
+  try {
+    const files = fs.readdirSync(rootPath);
+    if (files.some(f => f.endsWith('.html'))) languages.add('HTML');
+    if (files.some(f => f.endsWith('.css')))  languages.add('CSS');
+    if (files.some(f => f.endsWith('.js')))   languages.add('JavaScript');
+  } catch {}
 
   // TypeScript: tsconfig.json or typescript in deps
   if (
     fs.existsSync(path.join(rootPath, 'tsconfig.json')) ||
     deps.includes('typescript')
   ) {
-    languages.push('TypeScript');
-  } else {
-    // Check for JS
-    if (fs.existsSync(path.join(rootPath, 'package.json'))) {
-      languages.push('JavaScript');
-    }
+    languages.add('TypeScript');
+  } else if (fs.existsSync(path.join(rootPath, 'package.json'))) {
+    languages.add('JavaScript');
   }
 
   // Python
@@ -174,17 +161,17 @@ try {
     fs.existsSync(path.join(rootPath, 'pyproject.toml')) ||
     fs.existsSync(path.join(rootPath, 'setup.py'))
   ) {
-    languages.push('Python');
+    languages.add('Python');
   }
 
   // Go
   if (fs.existsSync(path.join(rootPath, 'go.mod'))) {
-    languages.push('Go');
+    languages.add('Go');
   }
 
   // Rust
   if (fs.existsSync(path.join(rootPath, 'Cargo.toml'))) {
-    languages.push('Rust');
+    languages.add('Rust');
   }
 
   // Java
@@ -192,20 +179,20 @@ try {
     fs.existsSync(path.join(rootPath, 'pom.xml')) ||
     fs.existsSync(path.join(rootPath, 'build.gradle'))
   ) {
-    languages.push('Java');
+    languages.add('Java');
   }
 
   // Ruby
   if (fs.existsSync(path.join(rootPath, 'Gemfile'))) {
-    languages.push('Ruby');
+    languages.add('Ruby');
   }
 
   // PHP
   if (fs.existsSync(path.join(rootPath, 'composer.json'))) {
-    languages.push('PHP');
+    languages.add('PHP');
   }
 
-  return languages;
+  return Array.from(languages);
 }
 
 /**
@@ -221,26 +208,23 @@ function detectDocker(rootPath: string): boolean {
 
 /**
  * Auto-detect the full tech stack from the workspace root.
+ * FIX 2: return type is now TechStack (not TechStack | null) — always returns a valid object.
  * @param rootPath - Absolute path to the workspace root
  * @returns TechStack object with categorized technologies
  */
-export function detectTechStack(rootPath: string): TechStack | null {
+export function detectTechStack(rootPath: string): TechStack {
   const pkgPath = path.join(rootPath, 'package.json');
-
-  
 
   let allDeps: string[] = [];
   let packageData: Record<string, unknown> = {};
-
-  
 
   if (fs.existsSync(pkgPath)) {
     try {
       const raw = fs.readFileSync(pkgPath, 'utf-8');
       packageData = JSON.parse(raw) as Record<string, unknown>;
 
-      const deps = Object.keys((packageData.dependencies as Record<string, string>) ?? {});
-      const devDeps = Object.keys((packageData.devDependencies as Record<string, string>) ?? {});
+      const deps     = Object.keys((packageData.dependencies    as Record<string, string>) ?? {});
+      const devDeps  = Object.keys((packageData.devDependencies as Record<string, string>) ?? {});
       const peerDeps = Object.keys((packageData.peerDependencies as Record<string, string>) ?? {});
       allDeps = [...deps, ...devDeps, ...peerDeps];
     } catch {
@@ -249,12 +233,12 @@ export function detectTechStack(rootPath: string): TechStack | null {
   }
 
   const languages = detectLanguages(rootPath, allDeps);
-  const frontend = detectFrom(allDeps, FRONTEND_DEPS);
-  const backend = detectFrom(allDeps, BACKEND_DEPS);
-  const database = detectFrom(allDeps, DATABASE_DEPS);
-  const testing = detectFrom(allDeps, TESTING_DEPS);
-  const devTools = detectFrom(allDeps, DEVTOOL_DEPS);
-  const other = detectFrom(allDeps, OTHER_DEPS);
+  const frontend  = detectFrom(allDeps, FRONTEND_DEPS);
+  const backend   = detectFrom(allDeps, BACKEND_DEPS);
+  const database  = detectFrom(allDeps, DATABASE_DEPS);
+  const testing   = detectFrom(allDeps, TESTING_DEPS);
+  const devTools  = detectFrom(allDeps, DEVTOOL_DEPS);
+  const other     = detectFrom(allDeps, OTHER_DEPS);
 
   if (detectDocker(rootPath)) {
     other.push('Docker');

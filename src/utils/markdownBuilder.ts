@@ -5,358 +5,167 @@ import { TechStack, getNpmScripts, getEnvKeys } from './techDetector';
 import { FolderNode, renderTree } from './folderScanner';
 import { GitCommit } from './gitHelper';
 
+// ─── Skip lists ───────────────────────────────────────────────────────────────
+
 const BINARY_EXT = new Set([
-  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff', '.avif',
-  '.pdf', '.zip', '.tar', '.gz', '.rar', '.7z', '.exe', '.dll', '.so', '.dylib',
-  '.mp3', '.mp4', '.wav', '.avi', '.mov', '.webm', '.mkv', '.ogg',
+  // Images
+  '.png', '.jpg', '.jpeg', '.gif', '.webp', '.ico', '.bmp', '.tiff', '.avif', '.svg',
+  // Video/Audio
+  '.mp4', '.mp3', '.wav', '.avi', '.mov', '.webm', '.mkv', '.ogg', '.flac',
+  // Archives
+  '.zip', '.tar', '.gz', '.rar', '.7z', '.dmg', '.iso',
+  // Compiled/binary
+  '.exe', '.dll', '.so', '.dylib', '.class', '.jar', '.pyc', '.pyo', '.o', '.a', '.bin',
+  // Fonts
   '.ttf', '.woff', '.woff2', '.eot', '.otf',
+  // DB
   '.db', '.sqlite', '.sqlite3',
-  '.glb', '.gltf', '.fbx', '.obj',
-  '.psd', '.ai', '.sketch', '.fig',
-  '.class', '.jar', '.pyc', '.o', '.a',
-  '.bin', '.dat', '.iso', '.svg',
+  // Design/3D
+  '.glb', '.gltf', '.fbx', '.obj', '.psd', '.ai', '.sketch', '.fig', '.xd',
+  // Docs
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  // Flutter/Android/iOS compiled
+  '.dill', '.snapshot', '.aot', '.apk', '.aab', '.aar', '.dex', '.ipa',
+  // Misc
+  '.dat', '.log',
 ]);
 
 const LOCK_FILES = new Set([
-  'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
-  'Cargo.lock', 'poetry.lock', 'composer.lock', 'Gemfile.lock',
+  'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml', 'bun.lockb',
+  'Cargo.lock', 'poetry.lock', 'Pipfile.lock', 'Gemfile.lock',
+  'composer.lock', 'pubspec.lock', 'go.sum',
 ]);
 
-const IGNORE_IN_TREE = new Set([
-  'contextflow.md', 'aibridge.md', 'project.ai.md', '.gitignore', '.env',
-  'vercel.json', 'netlify.toml', '.eslintrc.json', '.prettierrc',
+const IGNORE_FILES = new Set([
+  // Generated
+  'aicodebrdige.md', 'contextflow.md', 'aibridge.md',
+  // Lint/format config
+  '.eslintrc', '.eslintrc.json', '.eslintrc.js', '.eslintrc.yml',
+  '.prettierrc', '.prettierrc.json', '.prettierrc.js',
+  '.editorconfig', '.browserslistrc', '.gitignore', '.eslintignore',
+  // Env
+  '.env', '.env.local', '.env.development', '.env.production', '.env.test',
+  // Deploy
+  'vercel.json', 'netlify.toml', 'railway.json', 'fly.toml', 'render.yaml',
+  // CI
+  '.travis.yml', 'circle.yml', 'Jenkinsfile',
+  // Flutter
+  '.flutter-plugins', '.flutter-plugins-dependencies', '.metadata',
+  // Android
+  'gradlew', 'gradlew.bat', 'local.properties',
+  // Misc
+  'CHANGELOG.md', 'CONTRIBUTING.md', 'CODE_OF_CONDUCT.md', '.vscodeignore',
 ]);
 
-const MAX_FILE_SIZE_BYTES = 50 * 1024;
+const MAX_FILE_SIZE = 50 * 1024;
 
 export type GenerateMode = 'basic' | 'tree' | 'full';
 
-export function isBinaryOrLockFile(filePath: string): boolean {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+export function isBinaryOrLockFile(fp: string): boolean {
   return (
-    BINARY_EXT.has(path.extname(filePath).toLowerCase()) ||
-    LOCK_FILES.has(path.basename(filePath))
+    BINARY_EXT.has(path.extname(fp).toLowerCase()) ||
+    LOCK_FILES.has(path.basename(fp)) ||
+    IGNORE_FILES.has(path.basename(fp))
   );
 }
 
-function isFileTooLarge(filePath: string): boolean {
-  try { return fs.statSync(filePath).size > MAX_FILE_SIZE_BYTES; }
-  catch { return true; }
+function isTooBig(fp: string): boolean {
+  try { return fs.statSync(fp).size > MAX_FILE_SIZE; } catch { return true; }
 }
 
-function hasBinaryContent(buffer: Buffer): boolean {
-  const sample = buffer.slice(0, 512);
+function hasBinaryContent(buf: Buffer): boolean {
+  const s = buf.slice(0, 512);
   let bad = 0;
-  for (let i = 0; i < sample.length; i++) {
-    const b = sample[i];
+  for (let i = 0; i < s.length; i++) {
+    const b = s[i];
     if (b === 0) return true;
     if (b < 8 || (b > 13 && b < 32 && b !== 27)) bad++;
   }
-  return bad / sample.length > 0.1;
+  return bad / s.length > 0.1;
 }
 
-function getLang(filePath: string): string {
+function getLang(fp: string): string {
   const map: Record<string, string> = {
-    '.ts': 'typescript', '.tsx': 'tsx',
-    '.js': 'javascript', '.jsx': 'jsx', '.mjs': 'javascript',
-    '.json': 'json', '.md': 'markdown',
-    '.html': 'html', '.htm': 'html',
-    '.css': 'css', '.scss': 'scss', '.sass': 'sass', '.less': 'less',
-    '.py': 'python', '.go': 'go', '.rs': 'rust',
-    '.java': 'java', '.rb': 'ruby', '.php': 'php',
-    '.sh': 'bash', '.bash': 'bash', '.zsh': 'bash',
-    '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml',
-    '.sql': 'sql', '.graphql': 'graphql', '.prisma': 'prisma', '.env': 'bash',
+    '.ts': 'typescript', '.tsx': 'tsx', '.js': 'javascript', '.jsx': 'jsx',
+    '.mjs': 'javascript', '.json': 'json', '.md': 'markdown',
+    '.html': 'html', '.css': 'css', '.scss': 'scss', '.sass': 'sass',
+    '.py': 'python', '.go': 'go', '.rs': 'rust', '.java': 'java',
+    '.rb': 'ruby', '.php': 'php', '.sh': 'bash', '.bash': 'bash',
+    '.yaml': 'yaml', '.yml': 'yaml', '.toml': 'toml', '.sql': 'sql',
+    '.dart': 'dart', '.swift': 'swift', '.kt': 'kotlin',
+    '.xml': 'xml', '.c': 'c', '.cpp': 'cpp', '.cs': 'csharp',
   };
-  const base = path.basename(filePath).toLowerCase();
+  const base = path.basename(fp).toLowerCase();
   if (base === 'dockerfile') return 'dockerfile';
   if (base === 'makefile') return 'makefile';
-  return map[path.extname(filePath).toLowerCase()] ?? '';
+  return map[path.extname(fp).toLowerCase()] ?? '';
 }
 
 function readSafe(fp: string): { content: string; error: string | null } {
-  if (isBinaryOrLockFile(fp)) return { content: '', error: 'binary or lock file' };
-  if (isFileTooLarge(fp)) return { content: '', error: 'file too large (over 50KB)' };
+  if (isBinaryOrLockFile(fp)) return { content: '', error: 'skipped' };
+  if (isTooBig(fp)) return { content: '', error: 'too large' };
   let buf: Buffer;
-  try { buf = fs.readFileSync(fp); }
-  catch { return { content: '', error: 'could not read file' }; }
-  if (hasBinaryContent(buf)) return { content: '', error: 'binary content detected' };
+  try { buf = fs.readFileSync(fp); } catch { return { content: '', error: 'unreadable' }; }
+  if (hasBinaryContent(buf)) return { content: '', error: 'binary' };
   return { content: buf.toString('utf-8'), error: null };
 }
 
-function getFileMeta(fp: string): { lines: number; sizeKb: string } {
-  try {
-    const content = fs.readFileSync(fp, 'utf-8');
-    return {
-      lines: content.split('\n').length,
-      sizeKb: (fs.statSync(fp).size / 1024).toFixed(1),
-    };
-  } catch { return { lines: 0, sizeKb: '?' }; }
+function lineCount(fp: string): number {
+  try { return fs.readFileSync(fp, 'utf-8').split('\n').length; } catch { return 0; }
 }
 
-function detectDeps(fp: string): string[] {
-  const { content, error } = readSafe(fp);
-  if (error) return [];
+// ─── Compact sections ─────────────────────────────────────────────────────────
 
-  const deps: string[] = [];
-  const ext = path.extname(fp).toLowerCase();
-  const lines = content.split('\n').slice(0, 60);
-
-  for (const line of lines) {
-    const htmlMatch = line.match(/(?:href|src)=["']([^"'#?]+)["']/);
-    if (htmlMatch) {
-      const val = htmlMatch[1].trim();
-      if (val.startsWith('http')) {
-        const cdn = val.match(/\/([a-zA-Z0-9-]+)[@/]/);
-        if (cdn) deps.push(`${cdn[1]} (CDN)`);
-      } else if (val && !val.startsWith('data:')) {
-        deps.push(val.replace(/^\.\.?\//, ''));
-      }
-      continue;
-    }
-
-    if (['.js', '.ts', '.jsx', '.tsx', '.mjs'].includes(ext)) {
-      const imp = line.match(/(?:from|require)\s*\(?\s*['"]([^'"]+)['"]/);
-      if (imp) {
-        const val = imp[1];
-        if (val.startsWith('.')) deps.push(val.replace(/^\.\.?\//, ''));
-        else deps.push(`${val} (pkg)`);
-      }
-    }
-
-    if (['.css', '.scss', '.sass'].includes(ext)) {
-      const imp = line.match(/@import\s+['"]([^'"]+)['"]/);
-      if (imp) deps.push(imp[1].replace(/^\.\.?\//, ''));
-    }
-  }
-
-  return [...new Set(deps)].slice(0, 8);
+function buildOverview(input: MarkdownInput): string {
+  const ts = input.techStack;
+  if (!ts) return `**${input.projectName}** — project.`;
+  if (ts.backend.length && ts.frontend.length)
+    return `**${input.projectName}** — full-stack app (${[...ts.frontend, ...ts.backend].slice(0, 3).join(', ')}).`;
+  if (ts.backend.length)
+    return `**${input.projectName}** — backend API (${ts.backend.join(', ')}${ts.database.length ? ` + ${ts.database.join(', ')}` : ''}).`;
+  if (ts.frontend.length)
+    return `**${input.projectName}** — frontend app (${ts.frontend.join(', ')}).`;
+  return `**${input.projectName}** — ${ts.languages.join(', ')} project.`;
 }
 
-interface ApiEndpoint {
-  method: string;
-  path: string;
-  handler: string;
-  file: string;
+function buildTechStack(ts: TechStack): string[] {
+  const lines: string[] = [];
+  if (ts.languages.length) lines.push(`- **Lang:** ${ts.languages.join(', ')}`);
+  if (ts.frontend.length)  lines.push(`- **Frontend:** ${ts.frontend.join(', ')}`);
+  if (ts.backend.length)   lines.push(`- **Backend:** ${ts.backend.join(', ')}`);
+  if (ts.database.length)  lines.push(`- **DB:** ${ts.database.join(', ')}`);
+  if (ts.testing.length)   lines.push(`- **Test:** ${ts.testing.join(', ')}`);
+  if (ts.devTools.length)  lines.push(`- **Tools:** ${ts.devTools.join(', ')}`);
+  if (ts.other.length)     lines.push(`- **Other:** ${ts.other.join(', ')}`);
+  return lines;
 }
 
-function extractEndpoints(fp: string, rootPath: string): ApiEndpoint[] {
-  const { content, error } = readSafe(fp);
-  if (error) return [];
-
-  const endpoints: ApiEndpoint[] = [];
-  const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
-  const lines = content.split('\n');
-
-  const fileName = path.basename(fp, path.extname(fp));
-  const basePath = fileName
-    .replace('Routes', '').replace('routes', '').replace('Router', '').toLowerCase();
-
-  for (const line of lines) {
-    const match = line.match(
-      /router\.(get|post|put|patch|delete|use)\s*\(\s*['"`]([^'"`]+)['"`]/i
-    );
-    if (match) {
-      const method = match[1].toUpperCase();
-      const routePath = match[2];
-      const handlerMatch = line.match(/,\s*(?:\w+\.)?(\w+)\s*[,)]/);
-      const handler = handlerMatch ? handlerMatch[1] : '';
-      endpoints.push({
-        method,
-        path: `/${basePath}${routePath === '/' ? '' : routePath}`,
-        handler,
-        file: rel,
-      });
-    }
-  }
-
-  return endpoints;
-}
-
-interface ImportantFile {
-  path: string;
-  role: string;
-  why: string;
-  lines: number;
-}
-
-function analyzeImportantFiles(selectedFiles: string[], rootPath: string): ImportantFile[] {
-  const important: ImportantFile[] = [];
-
-  const roleMap: Array<{ pattern: RegExp; role: string; why: (name: string) => string }> = [
-    { pattern: /controller/i, role: 'Controller', why: (n) => `Handles business logic for ${n.replace(/controller/i, '').replace(/\./, '')} operations` },
-    { pattern: /middleware/i, role: 'Middleware', why: (n) => `Intercepts requests — ${n.includes('auth') ? 'verifies JWT tokens and protects routes' : n.includes('error') ? 'handles errors globally' : 'validates or transforms requests'}` },
-    { pattern: /model/i, role: 'Model', why: (n) => `Defines ${n.replace(/\.(js|ts)$/, '')} database schema and shape` },
-    { pattern: /route/i, role: 'Router', why: (n) => `Maps HTTP endpoints to ${n.replace(/routes?\.(js|ts)$/, '').replace(/\./, '')} controller functions` },
-    { pattern: /server\.(js|ts)$/i, role: 'Entry Point', why: () => 'App entry — initializes Express, loads middleware, connects DB, starts server' },
-    { pattern: /index\.(js|ts)$/i, role: 'App Root', why: () => 'Registers all routes and global middleware onto the Express app' },
-    { pattern: /db\.(js|ts)$/i, role: 'Database', why: () => 'Manages database connection — called once at startup' },
-    { pattern: /auth/i, role: 'Auth', why: (n) => `Core authentication — ${n.includes('controller') ? 'handles login/register/logout' : n.includes('middleware') ? 'protects private routes with JWT' : 'auth utilities'}` },
-    { pattern: /token/i, role: 'Utility', why: () => 'Generates and signs JWT tokens for authenticated sessions' },
-    { pattern: /response|apiResponse/i, role: 'Utility', why: () => 'Standardizes all API responses — used by every controller' },
+function buildKeyFiles(files: string[], rootPath: string): string[] {
+  const roleMap = [
+    { p: /server\.(js|ts)$/i,   role: 'Entry' },
+    { p: /index\.(js|ts)$/i,    role: 'Root' },
+    { p: /controller/i,         role: 'Controller' },
+    { p: /route/i,              role: 'Route' },
+    { p: /middleware/i,         role: 'Middleware' },
+    { p: /model/i,              role: 'Model' },
+    { p: /db\.(js|ts)$/i,       role: 'Database' },
+    { p: /auth/i,               role: 'Auth' },
   ];
-
-  for (const fp of selectedFiles) {
+  const found: string[] = [];
+  for (const fp of files) {
+    if (isBinaryOrLockFile(fp)) continue;
     const base = path.basename(fp);
-    if (IGNORE_IN_TREE.has(base) || LOCK_FILES.has(base)) continue;
-    if (isBinaryOrLockFile(fp)) continue;
-
-    const meta = getFileMeta(fp);
     const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
-
-    for (const rule of roleMap) {
-      if (rule.pattern.test(base)) {
-        important.push({ path: rel, role: rule.role, why: rule.why(base), lines: meta.lines });
-        break;
-      }
+    for (const r of roleMap) {
+      if (r.p.test(base)) { found.push(`- \`${rel}\` — ${r.role}`); break; }
     }
   }
-
-  const rolePriority: Record<string, number> = {
-    'Entry Point': 1, 'App Root': 2, 'Database': 3, 'Auth': 4,
-    'Controller': 5, 'Router': 6, 'Middleware': 7, 'Model': 8, 'Utility': 9,
-  };
-
-  return important
-    .sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99))
-    .slice(0, 10);
+  return found.slice(0, 8);
 }
 
-function detectBusinessFlow(selectedFiles: string[], techStack: TechStack | null): string {
-  const names = selectedFiles.map(f => path.basename(f).toLowerCase());
-  const has = (k: string) => names.some(f => f.includes(k));
-
-  const steps: string[] = [];
-  if (has('auth') || has('user')) steps.push('User registers / logs in');
-  if (has('product') || has('food')) steps.push('Browse items');
-  if (has('cart')) steps.push('Add to cart');
-  if (has('order')) steps.push('Place order');
-
-  if (steps.length === 0) {
-    return 'Client sends request → Middleware validates → Controller processes → Response returned';
-  }
-
-  return steps.join(' → ');
-}
-
-interface DepInsight { file: string; dependsOn: string[]; reason: string; }
-
-function buildDepInsights(selectedFiles: string[], rootPath: string): DepInsight[] {
-  const insights: DepInsight[] = [];
-
-  for (const fp of selectedFiles) {
-    const base = path.basename(fp).toLowerCase();
-    const rel = path.relative(rootPath, fp).replace(/\\/g, '/');
-
-    if (!base.includes('controller') && !base.includes('route')) continue;
-    if (isBinaryOrLockFile(fp)) continue;
-
-    const deps = detectDeps(fp).filter(d => !d.includes('(pkg)') && !d.includes('(CDN)'));
-    if (deps.length === 0) continue;
-
-    const isController = base.includes('controller');
-    const isRoute = base.includes('route');
-    let reason = '';
-    if (isController) reason = `Needs ${deps.map(d => path.basename(d)).join(', ')} to read/write data and send responses`;
-    else if (isRoute) reason = `Connects HTTP endpoints to ${deps.map(d => path.basename(d)).join(', ')}`;
-
-    insights.push({ file: rel, dependsOn: deps, reason });
-  }
-
-  return insights.slice(0, 6);
-}
-
-interface TreeNode { name: string; children: Map<string, TreeNode>; fullPath?: string; }
-
-function buildTree(paths: string[], rootPath: string): TreeNode {
-  const root: TreeNode = { name: path.basename(rootPath), children: new Map() };
-
-  for (const relPath of paths) {
-    const parts = relPath.split('/');
-    let current = root;
-    let currentFullPath = rootPath;
-
-    for (const part of parts) {
-      currentFullPath = path.join(currentFullPath, part);
-      if (!current.children.has(part)) {
-        current.children.set(part, { name: part, children: new Map(), fullPath: currentFullPath });
-      }
-      current = current.children.get(part)!;
-    }
-  }
-
-  return root;
-}
-
-function cleanDep(dep: string): string {
-  return dep.replace(/\s*\(pkg\)|\s*\(CDN\)/g, '');
-}
-
-function renderTreePretty(node: TreeNode, prefix = '', isLast = true, isRoot = false): string[] {
-  const lines: string[] = [];
-
-  if (isRoot) {
-    lines.push(node.name + '/');
-  } else {
-    const connector = isLast ? '└── ' : '├── ';
-    if (node.fullPath && !node.children.size) {
-      const meta = getFileMeta(node.fullPath);
-      lines.push(`${prefix}${connector}${node.name} (${meta.lines} lines, ${meta.sizeKb} KB)`);
-    } else {
-      lines.push(prefix + connector + node.name);
-    }
-  }
-
-  const newPrefix = isRoot ? '' : prefix + (isLast ? '    ' : '│   ');
-  const children = Array.from(node.children.values());
-
-  children.forEach((child, index) => {
-    const last = index === children.length - 1;
-    lines.push(...renderTreePretty(child, newPrefix, last, false));
-
-    if (child.fullPath && !child.children.size) {
-      const deps = detectDeps(child.fullPath).map(cleanDep);
-      if (deps.length === 0) {
-        lines.push(newPrefix + (last ? '    ' : '│   ') + '└── (no external dependencies)');
-      } else {
-        deps.forEach((dep, i) => {
-          const depPrefix = newPrefix + (last ? '    ' : '│   ') + (i === deps.length - 1 ? '└── ' : '├── ');
-          lines.push(depPrefix + 'uses → ' + dep);
-        });
-      }
-    }
-  });
-
-  return lines;
-}
-
-function buildArchitectureTree(selectedFiles: string[], rootPath: string, gitCommits: GitCommit[]): string[] {
-  const lines: string[] = [];
-  lines.push('## 🌳 Project Architecture Tree\n');
-  lines.push('```');
-
-  const relPaths = selectedFiles
-    .filter(fp => {
-      const base = path.basename(fp);
-      return !IGNORE_IN_TREE.has(base) && !LOCK_FILES.has(base) && !isBinaryOrLockFile(fp);
-    })
-    .map(fp => path.relative(rootPath, fp).replace(/\\/g, '/'));
-
-  const tree = buildTree(relPaths, rootPath);
-  lines.push(...renderTreePretty(tree, '', true, true));
-  lines.push('```\n');
-
-  lines.push('## 🕐 Last 5 Commits\n');
-  if (gitCommits.length) {
-    gitCommits.slice(0, 5).forEach(c => {
-      lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`);
-    });
-  } else {
-    lines.push('_No git history found._');
-  }
-  lines.push('');
-
-  return lines;
-}
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export interface MarkdownInput {
   projectName: string;
@@ -370,260 +179,121 @@ export interface MarkdownInput {
   mode: GenerateMode;
 }
 
-function generateSmartOverview(input: MarkdownInput): string[] {
+export function buildMarkdown(input: MarkdownInput): string {
+  const cfg = vscode.workspace.getConfiguration('aicodebrdige');
   const lines: string[] = [];
   const ts = input.techStack;
-  const project = input.projectName;
-  const files = input.treeFlat ?? [];
-  const names = files.map(f => path.basename(f).toLowerCase());
-  const has = (k: string) => names.some(f => f.includes(k));
-
-  let desc = `**${project}**`;
-
-  if (ts?.backend.length) {
-    desc += ` is a backend API built with ${ts.backend.join(', ')}`;
-    if (ts.database.length) desc += ` and ${ts.database.join(', ')}`;
-    desc += `.`;
-  } else if (ts?.frontend.length) {
-    desc += ` is a frontend application built with ${ts.frontend.join(', ')}.`;
-  } else {
-    desc += ` is a ${ts?.languages.join(', ') || 'software'} project.`;
-  }
-
-  lines.push(desc);
-  return lines;
-}
-
-export function buildMarkdown(input: MarkdownInput): string {
-  const cfg = vscode.workspace.getConfiguration('contextflow');
-  const now = new Date().toLocaleString();
-  const lines: string[] = [];
 
   const modeLabel: Record<GenerateMode, string> = {
-    basic: '⚡ Basic',
-    tree: '🌳 Project Tree',
-    full: '📄 Full Code',
+    basic: '⚡ Basic', tree: '🌳 Tree', full: '📄 Full',
   };
 
-  // NEW
-  lines.push(`# AICodeBridge — ${input.projectName}`);
-  lines.push(`> Generated on ${now}  |  Mode: ${modeLabel[input.mode]}`);
-  lines.push(`> Paste into ChatGPT, Claude, Gemini, or any AI tool.\n`);
+  // Compact header
+  lines.push(`# ${input.projectName} — AICodeBridge`);
+  lines.push(`> ${new Date().toLocaleString()} | ${modeLabel[input.mode]}\n`);
   lines.push('---\n');
 
-  lines.push('## 📋 Project Overview\n');
-  lines.push(...generateSmartOverview(input));
-  lines.push('');
+  // Overview — one line
+  lines.push(buildOverview(input) + '\n');
 
-  if (input.techStack) {
-    const isBackend = input.techStack.backend.length > 0;
-    const hasStripe = input.techStack.other.includes('Stripe');
-    const hasAuth = input.techStack.other.includes('JWT');
-    const isFrontend = input.techStack.frontend.length > 0;
-
-    let overview = `**${input.projectName}**`;
-
-    if (isBackend && isFrontend) {
-      overview += ` is a full-stack application built with ${[...input.techStack.frontend, ...input.techStack.backend].slice(0, 3).join(', ')}.`;
-    } else if (isBackend) {
-      overview += ` is a backend REST API built with ${input.techStack.backend.join(', ')}`;
-      if (input.techStack.database.length) overview += ` and ${input.techStack.database.join(', ')}`;
-      overview += '.';
-    } else if (isFrontend) {
-      overview += ` is a frontend application built with ${input.techStack.frontend.join(', ')}.`;
-    } else {
-      overview += ` is a ${input.techStack.languages.join(', ')} project.`;
-    }
-
-    lines.push(overview);
-
-    const fileNames = input.selectedFiles.map(f => path.basename(f).toLowerCase());
-    const has = (k: string) => fileNames.some(f => f.includes(k));
-
-    if (has('order') && has('food')) {
-      lines.push('It powers a **food ordering platform** — handling restaurants, menus, cart, orders' + (hasStripe ? ', and payments' : '') + '.');
-    } else if (has('order') && has('product')) {
-      lines.push('It powers an **e-commerce platform** — handling products, cart, orders' + (hasStripe ? ', and payments' : '') + '.');
-    } else if (has('auth') && hasAuth) {
-      lines.push('It includes a full **authentication system** using JWT tokens for secure session management.');
-    }
-
-    if (hasAuth) lines.push('Protected routes use JWT-based authentication middleware.');
-  } else {
-    lines.push(`**${input.projectName}** — static project.`);
-  }
-  lines.push('');
-
-  lines.push('## 🏗 Core Architecture\n');
-  if (input.techStack?.backend.length) {
-    const fileNames = input.selectedFiles.map(f => path.basename(f).toLowerCase());
-    const has = (k: string) => fileNames.some(f => f.includes(k));
-    const layers: Array<{ name: string; desc: string }> = [];
-    if (has('route')) layers.push({ name: 'Routes', desc: 'Define HTTP endpoints and map them to controller functions' });
-    if (has('controller')) layers.push({ name: 'Controllers', desc: 'Handle request logic — validate input, call models, return responses' });
-    if (has('middleware')) layers.push({ name: 'Middleware', desc: 'Intercept requests — handle auth, roles, validation, errors' });
-    if (has('model')) layers.push({ name: 'Models', desc: 'Define database schemas and interact with the database' });
-    if (has('util') || has('helper')) layers.push({ name: 'Utils', desc: 'Shared helpers — token generation, response formatting, etc.' });
-    if (has('config')) layers.push({ name: 'Config', desc: 'Database connection and app-level configuration' });
-
-    if (layers.length > 0) {
-      layers.forEach(l => lines.push(`- **${l.name}** — ${l.desc}`));
-    } else {
-      lines.push('- Standard MVC pattern — routes, controllers, models');
-    }
-  } else {
-    lines.push('- Static project — no server-side architecture detected');
-  }
-  lines.push('');
-
-  const routeFiles = input.selectedFiles.filter(fp =>
-    path.basename(fp).toLowerCase().includes('route') && !isBinaryOrLockFile(fp)
-  );
-
-  if (routeFiles.length > 0) {
-    lines.push('## 🔌 API Endpoints\n');
-    const allEndpoints: ApiEndpoint[] = [];
-    for (const fp of routeFiles) allEndpoints.push(...extractEndpoints(fp, input.rootPath));
-
-    if (allEndpoints.length > 0) {
-      const groups = new Map<string, ApiEndpoint[]>();
-      for (const ep of allEndpoints) {
-        const base = ep.path.split('/')[1] ?? 'root';
-        if (!groups.has(base)) groups.set(base, []);
-        groups.get(base)!.push(ep);
-      }
-      for (const [group, eps] of groups) {
-        lines.push(`**/${group}**`);
-        for (const ep of eps) {
-          const handlerNote = ep.handler ? ` → ${ep.handler}` : '';
-          lines.push(`- \`${ep.method}\` \`${ep.path}\`${handlerNote}`);
-        }
-        lines.push('');
-      }
-    } else {
-      lines.push('_Could not auto-detect endpoints. Check route files manually._\n');
-    }
-  }
-
-  lines.push('## 🔄 Business Flow\n');
-  lines.push(detectBusinessFlow(input.selectedFiles, input.techStack) + '\n');
-
-  const importantFiles = analyzeImportantFiles(input.selectedFiles, input.rootPath);
-  if (importantFiles.length > 0) {
-    lines.push('## ⭐ Important Files\n');
-    lines.push('| File | Role | Purpose |');
-    lines.push('|---|---|---|');
-    importantFiles.forEach(f =>
-      lines.push(`| \`${path.basename(f.path)}\` | ${f.role} | ${f.why} |`)
-    );
+  // Tech stack — compact
+  if (ts) {
+    lines.push('## 🛠 Stack\n');
+    lines.push(...buildTechStack(ts));
     lines.push('');
   }
 
-  const insights = buildDepInsights(input.selectedFiles, input.rootPath);
-  if (insights.length > 0) {
-    lines.push('## 🔗 Dependency Insights\n');
-    for (const ins of insights) lines.push(`- **${path.basename(ins.file)}** — ${ins.reason}`);
-    lines.push('');
-  }
-
-  lines.push('## 🛠 Tech Stack\n');
-  if (input.techStack) {
-    const ts = input.techStack;
-    if (ts.languages.length) lines.push(`- **Language:** ${ts.languages.join(', ')}`);
-    if (ts.frontend.length) lines.push(`- **Frontend:** ${ts.frontend.join(', ')}`);
-    if (ts.backend.length) lines.push(`- **Backend:** ${ts.backend.join(', ')}`);
-    if (ts.database.length) lines.push(`- **Database:** ${ts.database.join(', ')}`);
-    if (ts.testing.length) lines.push(`- **Testing:** ${ts.testing.join(', ')}`);
-    if (ts.devTools.length) lines.push(`- **Dev Tools:** ${ts.devTools.join(', ')}`);
-    if (ts.other.length) lines.push(`- **Other:** ${ts.other.join(', ')}`);
-  } else {
-    lines.push('- **Language:** HTML, CSS, JavaScript');
-  }
-  lines.push('');
-
+  // Scripts — compact, only if present
   if (cfg.get<boolean>('includeScripts') !== false) {
     const scripts = Object.entries(getNpmScripts(input.rootPath));
     if (scripts.length) {
-      lines.push('## 🔧 Available Scripts\n');
-      scripts.forEach(([k, v]) => lines.push(`- \`${k}\` → ${v}`));
+      lines.push('## 🔧 Scripts\n');
+      scripts.slice(0, 6).forEach(([k, v]) => lines.push(`- \`${k}\` → ${v}`));
       lines.push('');
     }
   }
 
+  // Env keys
   if (cfg.get<boolean>('includeEnvKeys') !== false) {
     const keys = getEnvKeys(input.rootPath);
     if (keys.length) {
-      lines.push('## 🌍 Environment Variables (keys only)\n');
-      keys.forEach(k => lines.push(`- ${k}`));
-      lines.push('');
+      lines.push('## 🌍 Env Keys\n');
+      lines.push(keys.join(', ') + '\n');
     }
   }
 
+  // Mode-specific
   if (input.mode === 'basic') {
-    lines.push('## 📁 Folder Structure\n');
-    lines.push('```');
+    // Folder structure
+    lines.push('## 📁 Structure\n```');
     lines.push(path.basename(input.rootPath) + '/');
-    lines.push(renderTree(input.tree));
+    lines.push(renderTree(input.tree).trimEnd());
     lines.push('```\n');
 
+    // Key files
+    const keyFiles = buildKeyFiles(input.treeFlat ?? [], input.rootPath);
+    if (keyFiles.length) {
+      lines.push('## ⭐ Key Files\n');
+      lines.push(...keyFiles);
+      lines.push('');
+    }
+
+    // Git — max 5 commits, short format
     if (cfg.get<boolean>('includeGitHistory') !== false && input.gitCommits.length) {
-      lines.push('## 🕐 Recent Git Activity\n');
-      input.gitCommits.forEach(c =>
-        lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`)
+      lines.push('## 🕐 Git\n');
+      input.gitCommits.slice(0, 5).forEach(c =>
+        lines.push(`- \`${c.hash}\` ${c.relativeDate} — ${c.message}`)
       );
       lines.push('');
     }
 
-    if (input.selectedFiles.length) {
-      lines.push('## 📎 Selected Files\n');
-      lines.push('| File | Lines | Size |');
-      lines.push('|---|---|---|');
-      for (const fp of input.selectedFiles) {
-        const rel = path.relative(input.rootPath, fp).replace(/\\/g, '/');
-        if (isBinaryOrLockFile(fp)) { lines.push(`| \`${rel}\` | — | binary |`); continue; }
-        const { lines: lc, sizeKb } = getFileMeta(fp);
-        lines.push(`| \`${rel}\` | ${lc} | ${sizeKb} KB |`);
-      }
+  } else if (input.mode === 'tree') {
+    lines.push('## 📁 Structure\n```');
+    lines.push(path.basename(input.rootPath) + '/');
+    lines.push(renderTree(input.tree).trimEnd());
+    lines.push('```\n');
+
+    if (input.gitCommits.length) {
+      lines.push('## 🕐 Git\n');
+      input.gitCommits.slice(0, 5).forEach(c =>
+        lines.push(`- \`${c.hash}\` ${c.relativeDate} — ${c.message}`)
+      );
       lines.push('');
-      lines.push('> 💡 Ask the AI about any specific file and share its contents on request.\n');
     }
 
-  } else if (input.mode === 'tree') {
-    const allFiles = input.treeFlat ?? [];
-    const files = allFiles.length > 0 ? allFiles : input.selectedFiles;
-    lines.push(...buildArchitectureTree(files, input.rootPath, input.gitCommits));
+  } else if (input.mode === 'full' && input.selectedFiles.length) {
+    // Key files summary first
+    const keyFiles = buildKeyFiles(input.selectedFiles, input.rootPath);
+    if (keyFiles.length) {
+      lines.push('## ⭐ Key Files\n');
+      lines.push(...keyFiles);
+      lines.push('');
+    }
 
-  } else if (input.mode === 'full') {
-    if (input.selectedFiles.length) {
-      lines.push('## 📎 Selected Files — Full Code\n');
-      for (const fp of input.selectedFiles) {
-        const base = path.basename(fp);
-        if (IGNORE_IN_TREE.has(base) || LOCK_FILES.has(base)) continue;
-
-        const rel = path.relative(input.rootPath, fp).replace(/\\/g, '/');
-        const { content, error } = readSafe(fp);
-
-        if (error) { lines.push(`> ⚠️ Skipped \`${rel}\` — ${error}\n`); continue; }
-
-        const meta = getFileMeta(fp);
-        lines.push(`### ${rel}  _(${meta.lines} lines)_`);
-        lines.push('```' + getLang(fp));
-        lines.push(content);
-        lines.push('```\n');
-      }
+    // Full code
+    lines.push('## 📎 Code\n');
+    for (const fp of input.selectedFiles) {
+      if (isBinaryOrLockFile(fp)) continue;
+      const rel = path.relative(input.rootPath, fp).replace(/\\/g, '/');
+      const { content, error } = readSafe(fp);
+      if (error) { lines.push(`> ⚠️ \`${rel}\` — ${error}\n`); continue; }
+      lines.push(`### ${rel} _(${lineCount(fp)} lines)_`);
+      lines.push('```' + getLang(fp));
+      lines.push(content.trimEnd());
+      lines.push('```\n');
     }
 
     if (cfg.get<boolean>('includeGitHistory') !== false && input.gitCommits.length) {
-      lines.push('## 🕐 Recent Git Activity\n');
-      input.gitCommits.forEach(c =>
-        lines.push(`- \`${c.hash}\` | ${c.author} | ${c.relativeDate} | ${c.message}`)
+      lines.push('## 🕐 Git\n');
+      input.gitCommits.slice(0, 5).forEach(c =>
+        lines.push(`- \`${c.hash}\` ${c.relativeDate} — ${c.message}`)
       );
       lines.push('');
     }
   }
 
   lines.push('---');
-  lines.push(`_Generated by AICodeBridge  — ${modeLabel[input.mode]} mode_`);
+  lines.push(`_AICodeBridge — ${modeLabel[input.mode]}_`);
 
   return lines.join('\n');
 }

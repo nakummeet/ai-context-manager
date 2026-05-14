@@ -21,7 +21,11 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getHtml(iconUri);
 
     webviewView.webview.onDidReceiveMessage((msg) => {
-      vscode.commands.executeCommand(`aicodebrdige.${msg.command}`);
+      if (msg.command === 'sendToAIWith' && msg.tool) {
+        vscode.commands.executeCommand('aicodebrdige.sendToAIWith', msg.tool);
+      } else {
+        vscode.commands.executeCommand(`aicodebrdige.${msg.command}`);
+      }
     });
   }
 
@@ -152,17 +156,10 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
       color: var(--vscode-descriptionForeground);
     }
 
-    .btn-basic {
-      border-left: 2px solid #4f8eff;
-    }
-
-    .btn-tree {
-      border-left: 2px solid #3ecf8e;
-    }
-
-    .btn-full {
-      border-left: 2px solid #f97316;
-    }
+    .btn-basic { border-left: 2px solid #4f8eff; }
+    .btn-tree  { border-left: 2px solid #3ecf8e; }
+    .btn-full  { border-left: 2px solid #f97316; }
+    .btn-send  { border-left: 2px solid #a855f7; }
 
     /* Divider */
     .divider {
@@ -171,7 +168,62 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
       margin: 6px 0;
     }
 
-    /* Small buttons */
+    /* AI picker dropdown */
+    .ai-menu {
+      flex-direction: column;
+      gap: 3px;
+      background: var(--vscode-button-secondaryBackground, #252526);
+      border: 1px solid var(--vscode-widget-border, #3c3c3c);
+      border-radius: 6px;
+      padding: 5px;
+      margin-top: -2px;
+    }
+
+    .ai-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 4px;
+      background: transparent;
+      border: none;
+      color: var(--vscode-foreground);
+      font-family: inherit;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      transition: background 0.12s;
+      outline: none;
+    }
+
+    .ai-option:hover {
+      background: var(--vscode-list-hoverBackground, #2a2d2e);
+    }
+
+    .ai-option:active {
+      opacity: 0.8;
+    }
+
+    .ai-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .ai-label {
+      flex: 1;
+    }
+
+    .ai-hint {
+      font-size: 9px;
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.7;
+    }
+
+    /* Small buttons row */
     .row {
       display: flex;
       gap: 6px;
@@ -232,6 +284,18 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
       font-size: 9px;
       color: var(--vscode-descriptionForeground);
     }
+
+    /* Arrow indicator on Send to AI button */
+    .btn-arrow {
+      font-size: 10px;
+      color: var(--vscode-descriptionForeground);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .btn-arrow.open {
+      transform: rotate(180deg);
+    }
   </style>
 </head>
 
@@ -278,6 +342,36 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
   <!-- Actions -->
   <div class="label">Actions</div>
 
+  <!-- Send to AI button with dropdown toggle -->
+  <button class="btn btn-send" onclick="toggleAIMenu()" id="sendBtn">
+    <span class="btn-icon">🚀</span>
+    <div class="btn-info">
+      <span class="btn-name">Send to AI</span>
+      <span class="btn-desc">Open in browser</span>
+    </div>
+    <span class="btn-arrow" id="btnArrow">▾</span>
+  </button>
+
+  <!-- AI picker — hidden by default, shown on toggle -->
+  <div class="ai-menu" id="aiMenu" style="display:none;">
+    <button class="ai-option" onclick="sendToAI('chatgpt')">
+      <span class="ai-dot" style="background:#10a37f;"></span>
+      <span class="ai-label">ChatGPT</span>
+      <span class="ai-hint">opens browser</span>
+    </button>
+    <button class="ai-option" onclick="sendToAI('claude')">
+      <span class="ai-dot" style="background:#d97706;"></span>
+      <span class="ai-label">Claude</span>
+      <span class="ai-hint">opens browser</span>
+    </button>
+    <button class="ai-option" onclick="sendToAI('gemini')">
+      <span class="ai-dot" style="background:#4285f4;"></span>
+      <span class="ai-label">Gemini</span>
+      <span class="ai-hint">opens browser</span>
+    </button>
+  </div>
+
+  <!-- Small action buttons -->
   <div class="row">
     <button class="btn-sm" onclick="send('copy')">
       📋 Copy
@@ -295,8 +389,23 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
 
   <script>
     const vscode = acquireVsCodeApi();
+
     function send(cmd) {
       vscode.postMessage({ command: cmd });
+    }
+
+    function toggleAIMenu() {
+      const menu = document.getElementById('aiMenu');
+      const arrow = document.getElementById('btnArrow');
+      const isOpen = menu.style.display !== 'none';
+      menu.style.display = isOpen ? 'none' : 'flex';
+      arrow.classList.toggle('open', !isOpen);
+    }
+
+    function sendToAI(tool) {
+      vscode.postMessage({ command: 'sendToAIWith', tool: tool });
+      document.getElementById('aiMenu').style.display = 'none';
+      document.getElementById('btnArrow').classList.remove('open');
     }
   </script>
 
