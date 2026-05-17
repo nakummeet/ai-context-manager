@@ -2,90 +2,228 @@
   "name": "aibridge",
   "displayName": "AICodeBridge",
   "description": "Bridge your codebase to any AI tool instantly — ChatGPT, Claude, Gemini & more",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "nakummeet",
   "license": "MIT",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other", "Snippets"],
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Snippets"
+  ],
   "icon": "images/icon.png",
-  "keywords": ["ai", "context", "chatgpt", "claude", "gemini", "developer tools", "productivity"],
-  "repository": { "type": "git", "url": "https://github.com/nakummeet/aibridge" },
-  "activationEvents": ["onStartupFinished"],
+  "keywords": [
+    "ai",
+    "context",
+    "chatgpt",
+    "claude",
+    "gemini",
+    "copilot",
+    "developer tools",
+    "productivity"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nakummeet/ai-context-manager"
+  },
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
-
+  "extensionDependencies": [],
   "contributes": {
     "commands": [
-      { "command": "aicodebrdige.generateBasic", "title": "⚡ Ask AI (Quick Context)", "icon": "$(zap)" },
-      { "command": "aicodebrdige.generateTree",  "title": "🌳 Ask AI (Project Structure)", "icon": "$(list-tree)" },
-      { "command": "aicodebrdige.generateFull",  "title": "📄 Ask AI (Full Codebase)", "icon": "$(file-code)" },
-      { "command": "aicodebrdige.copy",           "title": "Copy Context", "icon": "$(copy)" },
-      { "command": "aicodebrdige.refresh",        "title": "Refresh Context", "icon": "$(refresh)" },
-      { "command": "aicodebrdige.sendToAI",       "title": "🚀 AICodeBridge: Send to AI", "icon": "$(rocket)" },
-      { "command": "aicodebrdige.detectErrors",   "title": "🐛 AICodeBridge: Detect Errors", "icon": "$(bug)" },
-      { "command": "aicodebrdige.chatHistory",    "title": "🕐 AICodeBridge: Chat History", "icon": "$(history)" },
-      { "command": "aicodebrdige.refreshFilePicker", "title": "Refresh File List", "icon": "$(refresh)" },
-      { "command": "aicodebrdige.selectAll",      "title": "Select All Files", "icon": "$(check-all)" },
-      { "command": "aicodebrdige.deselectAll",    "title": "Deselect All Files", "icon": "$(close-all)" },
-      { "command": "aicodebrdige.toggleFile",     "title": "Toggle File Selection" }
+      {
+        "command": "aicodebrdige.generateBasic",
+        "title": "⚡ Ask AI (Quick Context)",
+        "icon": "$(zap)"
+      },
+      {
+        "command": "aicodebrdige.generateTree",
+        "title": "🌳 Ask AI (Project Structure)",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "aicodebrdige.generateFull",
+        "title": "📄 Ask AI (Full Codebase)",
+        "icon": "$(file-code)"
+      },
+      {
+        "command": "aicodebrdige.copy",
+        "title": "Copy Context",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "aicodebrdige.refresh",
+        "title": "Refresh Context",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aicodebrdige.askCopilot",
+        "title": "🤖 AICodeBridge: Ask Copilot",
+        "icon": "$(copilot)"
+      },
+      {
+        "command": "aicodebrdige.detectErrors",
+        "title": "🐛 AICodeBridge: Detect Errors",
+        "icon": "$(bug)"
+      },
+      {
+        "command": "aicodebrdige.chatHistory",
+        "title": "🕐 AICodeBridge: Chat History",
+        "icon": "$(history)"
+      },
+      {
+        "command": "aicodebrdige.refreshFilePicker",
+        "title": "Refresh File List",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "aicodebrdige.selectAll",
+        "title": "Select All Files",
+        "icon": "$(check-all)"
+      },
+      {
+        "command": "aicodebrdige.deselectAll",
+        "title": "Deselect All Files",
+        "icon": "$(close-all)"
+      },
+      {
+        "command": "aicodebrdige.toggleFile",
+        "title": "Toggle File Selection"
+      }
     ],
-
     "viewsContainers": {
       "activitybar": [
-        { "id": "aicodebridge-explorer", "title": "AICodeBridge", "icon": "$(comment-discussion)" }
+        {
+          "id": "aicodebridge-explorer",
+          "title": "AICodeBridge",
+          "icon": "$(comment-discussion)"
+        }
       ]
     },
-
     "views": {
       "aicodebridge-explorer": [
-        { "id": "aicodebridge-sidebar", "name": "Actions", "type": "webview" },
-        { "id": "aicodebridge-files",   "name": "Files" }
+        {
+          "id": "aicodebridge-sidebar",
+          "name": "Actions",
+          "type": "webview"
+        },
+        {
+          "id": "aicodebridge-files",
+          "name": "Files"
+        }
       ]
     },
-
     "menus": {
       "view/title": [
-        { "command": "aicodebrdige.refreshFilePicker", "when": "view == aicodebridge-files", "group": "navigation@1" },
-        { "command": "aicodebrdige.selectAll",         "when": "view == aicodebridge-files", "group": "navigation@2" },
-        { "command": "aicodebrdige.deselectAll",       "when": "view == aicodebridge-files", "group": "navigation@3" }
+        {
+          "command": "aicodebrdige.refreshFilePicker",
+          "when": "view == aicodebridge-files",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aicodebrdige.selectAll",
+          "when": "view == aicodebridge-files",
+          "group": "navigation@2"
+        },
+        {
+          "command": "aicodebrdige.deselectAll",
+          "when": "view == aicodebridge-files",
+          "group": "navigation@3"
+        }
       ],
       "editor/title": [
-        { "command": "aicodebrdige.sendToAI",     "group": "navigation@1" },
-        { "command": "aicodebrdige.detectErrors", "group": "navigation@2" }
+        {
+          "command": "aicodebrdige.askCopilot",
+          "group": "navigation@1"
+        },
+        {
+          "command": "aicodebrdige.detectErrors",
+          "group": "navigation@2"
+        }
       ]
     },
-
     "configuration": {
       "title": "AICodeBridge",
       "properties": {
-        "aicodebrdige.outputFileName":       { "type": "string",  "default": "aicodebrdige.md", "description": "Name of the generated context file" },
-        "aicodebrdige.autoOpenAfterGenerate":{ "type": "boolean", "default": true,  "description": "Open file after generation" },
-        "aicodebrdige.includeGitHistory":    { "type": "boolean", "default": true,  "description": "Include recent git commits" },
-        "aicodebrdige.includeScripts":       { "type": "boolean", "default": true,  "description": "Include npm scripts" },
-        "aicodebrdige.includeEnvKeys":       { "type": "boolean", "default": true,  "description": "Include env variable keys" },
-        "aicodebrdige.autoRefreshOnSave":    { "type": "boolean", "default": false, "description": "Auto-refresh context on file save" },
-        "aicodebrdige.gitLogCount":          { "type": "number",  "default": 10,    "description": "Number of git commits to include" },
-        "aicodebrdige.maxDepth":             { "type": "number",  "default": 4,     "description": "Max folder depth to scan" },
-        "aicodebrdige.ignoredFolders":       {
-          "type": "array", "items": { "type": "string" },
-          "default": ["node_modules", ".git", "dist", "build", ".next", "out", "__pycache__", ".dart_tool", ".gradle", "build", "Pods"],
+        "aicodebrdige.outputFileName": {
+          "type": "string",
+          "default": "aicodebrdige.md",
+          "description": "Name of the generated context file"
+        },
+        "aicodebrdige.autoOpenAfterGenerate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open file after generation"
+        },
+        "aicodebrdige.includeGitHistory": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include recent git commits"
+        },
+        "aicodebrdige.includeScripts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include npm scripts"
+        },
+        "aicodebrdige.includeEnvKeys": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include env variable keys"
+        },
+        "aicodebrdige.autoRefreshOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-refresh context on file save"
+        },
+        "aicodebrdige.gitLogCount": {
+          "type": "number",
+          "default": 10,
+          "description": "Number of git commits to include"
+        },
+        "aicodebrdige.maxDepth": {
+          "type": "number",
+          "default": 4,
+          "description": "Max folder depth to scan"
+        },
+        "aicodebrdige.ignoredFolders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [
+            "node_modules",
+            ".git",
+            "dist",
+            "build",
+            ".next",
+            "out",
+            "__pycache__",
+            ".dart_tool",
+            ".gradle",
+            "Pods"
+          ],
           "description": "Folders to ignore during scan"
         }
       }
     }
   },
-
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./"
   },
-
   "devDependencies": {
     "@types/node": "^20.19.39",
-    "@types/vscode": "^1.85.0",
+    "@types/vscode": "^1.90.0",
     "typescript": "^5.3.0"
   },
-
   "dependencies": {
     "@vscode/vsce": "^3.9.1"
   }

@@ -2,8 +2,8 @@
 
 > Bridge your codebase to any AI tool instantly — no more re-explaining your stack.
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nakummeet.aicodebrdige?label=VS%20Code%20Marketplace&color=007acc)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aicodebrdige)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/nakummeet.aicodebrdige)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aicodebrdige)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nakummeet.aibridge?label=VS%20Code%20Marketplace&color=007acc)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge)
+[![Downloads](https://img.shields.io/visual-studio-marketplace/d/nakummeet.aibridge)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](./LICENSE)
 
 ---
@@ -12,18 +12,15 @@
 
 Every time you open ChatGPT, Claude, or Gemini to ask about your project, you spend the first few messages just explaining what it is. AICodeBridge fixes that.
 
-It analyzes your codebase and generates a clean, structured Markdown file — tech stack, project structure, key files, git history — everything an AI needs to understand your project instantly. One click, then paste and go.
+It analyzes your codebase and generates a clean, structured Markdown file — tech stack, project structure, key files, git history — everything an AI needs to understand your project instantly. One click, then ask your question.
 
-Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and any other AI tool.
+Works with **GitHub Copilot** (built-in), **ChatGPT**, **Claude**, **Gemini**, and any other AI tool via clipboard.
 
 ---
-
-## Demo
 
 ![AICodeBridge Demo](images/demo.gif)
 
 ---
-
 ## Features
 
 ### Three Generation Modes
@@ -33,6 +30,12 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 | ⚡ **Basic** | Overview, structure, git history | Quick questions, debugging |
 | 🌳 **Tree** | Full file tree with architecture | "Help me redesign this" |
 | 📄 **Full Code** | Complete file contents (you pick files) | Deep code review, refactoring |
+
+### Ask Copilot (Built-in)
+- Opens GitHub Copilot Chat directly inside VS Code
+- Auto-attaches your context file — just type your question and hit Enter
+- If Copilot Chat isn't installed, prompts you to install it from the marketplace
+- No sign-in handling needed — Copilot manages its own auth flow
 
 ### Smart Project Analysis
 - Auto-detects tech stack from `package.json`, config files, and file extensions
@@ -44,10 +47,9 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 - Falls back to `tsc --noEmit` for TypeScript projects
 - Appends a formatted error table directly to your context file
 
-### Send to AI
-- Opens ChatGPT or Claude with your context pre-loaded in the URL
-- For Gemini: opens the browser and copies context to clipboard automatically
-- Full context always on clipboard as a fallback
+### Copy Context
+- Copies your full context to clipboard with `My question:` ready at the end
+- Paste into ChatGPT, Claude, Gemini, or any AI tool
 
 ### File Picker
 - Check/uncheck individual files or entire folders for Full Code mode
@@ -57,10 +59,6 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 - Optionally regenerates your context file on every save
 - Error section always stays fresh — updates after every file save regardless
 
-### Chat History
-- Remembers the last 20 AI sessions (tool used, file, timestamp, preview)
-- Re-send any previous context in one click
-
 ---
 
 ## Installation
@@ -68,10 +66,10 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 **From the VS Code Marketplace:**
 
 1. Open VS Code
-2. search `AICodeBridge` in the Extensions sidebar.
-3. click on download button
+2. Search `AICodeBridge` in the Extensions sidebar
+3. Click Install
 
-**Or search** MarketPlace - https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge
+**Or visit:** https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge
 
 ---
 
@@ -80,8 +78,8 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 1. Open your project folder in VS Code
 2. Click the **AICodeBridge icon** in the Activity Bar (left sidebar)
 3. Choose a generation mode — start with **⚡ Basic**
-4. Click **🚀 Send to AI** and pick your tool
-5. Your context is copied to clipboard and the browser opens — just type your question
+4. Click **🤖 Ask Copilot** to open Copilot Chat with your context attached
+5. Type your question and press Enter
 
 ---
 
@@ -105,28 +103,25 @@ All settings are under `aicodebrdige.*` in VS Code settings:
 
 ## Commands
 
-All commands are available from the Command Palette (`Ctrl+Shift+P`):
-
 | Command | Description |
 |---------|-------------|
 | `AICodeBridge: Ask AI (Quick Context)` | Generate Basic mode context |
 | `AICodeBridge: Ask AI (Project Structure)` | Generate Tree mode context |
 | `AICodeBridge: Ask AI (Full Codebase)` | Generate Full Code mode (uses selected files) |
-| `AICodeBridge: Send to AI` | Open context in ChatGPT, Claude, or Gemini |
-| `AICodeBridge: Detect Errors` | Scan and append errors to context file |
-| `AICodeBridge: Chat History` | View and re-send recent AI sessions |
-| `AICodeBridge: Refresh Context` | Regenerate context file manually |
+| `AICodeBridge: Ask Copilot` | Open Copilot Chat with context attached |
 | `AICodeBridge: Copy Context` | Copy context to clipboard |
+| `AICodeBridge: Detect Errors` | Scan and append errors to context file |
+| `AICodeBridge: Refresh Context` | Regenerate context file manually |
+| `AICodeBridge: Chat History` | View recent AI sessions |
 
 ---
 
-
 ## Author
 
-**Meet Nakum** <br> Computer Engineering Student, Flutter & MERN stack developer 
+**Meet Nakum** <br> Computer Engineering Student, Flutter & MERN stack developer
 
 ---
 
 ## License
 
-[MIT](./LICENSE)
+[Proprietary](./LICENSE)

@@ -4,6 +4,11 @@ import * as path from 'path';
 import { getIgnoredFolders, getMaxDepth } from '../utils/folderScanner';
 import { isBinaryOrLockFile } from '../utils/markdownBuilder';
 
+function getOutputFileName(): string {
+  const config = vscode.workspace.getConfiguration('aicodebrdige');
+  return config.get<string>('outputFileName') ?? 'aicodebrdige.md';
+}
+
 export class FileItem extends vscode.TreeItem {
   children: FileItem[] = [];
   isChecked = false;
@@ -17,7 +22,7 @@ export class FileItem extends vscode.TreeItem {
     super(label, state);
     this.command = isDirectory
       ? undefined
-      : { command: 'contextflow.toggleFile', title: 'Toggle', arguments: [this] };
+      : { command: 'aicodebrdige.toggleFile', title: 'Toggle', arguments: [this] };
     this.updateUI();
   }
 
@@ -104,7 +109,7 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
       if (child.isDirectory) {
         this.setDir(child, checked);
       } else {
-        if (isBinaryOrLockFile(child.absolutePath)) continue;
+        if (this.isBinaryInPicker(child.absolutePath)) continue;
         child.isChecked = checked;
         checked
           ? this.selected.add(child.absolutePath)
@@ -121,7 +126,7 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
         item.updateUI();
         this.setAll(item.children, checked);
       } else {
-        if (isBinaryOrLockFile(item.absolutePath)) continue;
+        if (this.isBinaryInPicker(item.absolutePath)) continue;
         item.isChecked = checked;
         checked
           ? this.selected.add(item.absolutePath)
@@ -129,6 +134,19 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
         item.updateUI();
       }
     }
+  }
+
+  /**
+   * Binary check for the file picker UI.
+   * Unlike the context generator, we never hide the output .md file — it should
+   * be visible in the tree (just not selectable for Full mode since it's auto-excluded
+   * by markdownBuilder's IGNORE_FILES during generation).
+   */
+  private isBinaryInPicker(fp: string): boolean {
+    const base = path.basename(fp);
+    // Never mark the generated context file as binary — it's a plain text .md file.
+    if (base === getOutputFileName()) return false;
+    return isBinaryOrLockFile(fp);
   }
 
   private build(dir: string, depth: number): FileItem[] {
@@ -147,6 +165,7 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
     });
 
     const items: FileItem[] = [];
+    const outputFileName = getOutputFileName();
 
     for (const e of entries) {
       if (getIgnoredFolders().includes(e.name)) continue;
@@ -160,6 +179,16 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
         items.push(item);
       } else {
         const item = new FileItem(full, false, e.name, vscode.TreeItemCollapsibleState.None);
+
+        // The output md file: show it but mark as non-selectable
+        if (e.name === outputFileName) {
+          item.iconPath = new vscode.ThemeIcon('file-text');
+          item.description = 'context file';
+          item.tooltip = 'Generated context file — auto-excluded from Full mode';
+          item.command = undefined;
+          items.push(item);
+          continue;
+        }
 
         if (isBinaryOrLockFile(full)) {
           item.iconPath = new vscode.ThemeIcon('circle-slash');

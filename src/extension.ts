@@ -3,7 +3,7 @@ import { generateContext } from './commands/generateContext';
 import { copyContext } from './commands/copyContext';
 import { refreshContext } from './commands/refreshContext';
 import { showDiff } from './commands/showDiff';
-import { sendToAI, sendToAIWith } from './commands/sendtoai';
+import { askCopilot } from './commands/askCopilot';
 import { detectErrors } from './commands/detecterrors';
 import { showChatHistory, initChatHistory } from './commands/chathistory';
 import { FilePickerProvider, FileItem } from './providers/filePickerProvider';
@@ -13,7 +13,7 @@ import { openAICodeBridgePanel } from './ui/webviewPanel';
 import { SidebarPanelProvider } from './ui/SidebarPanelProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  console.log('AICodeBridge v0.0.3 activated.');
+  console.log('AICodeBridge v0.0.4 activated.');
 
   initChatHistory(context);
 
@@ -46,11 +46,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.refresh', refreshContext));
   context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.showDiff', showDiff));
 
-  // Send to AI — command palette (shows QuickPick)
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.sendToAI', sendToAI));
-
-  // Send to AI — direct from sidebar buttons (tool id passed as argument)
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.sendToAIWith', (tool: string) => sendToAIWith(tool)));
+  // Ask Copilot — replaces sendToAI
+  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.askCopilot', askCopilot));
 
   // Error detection & chat history
   context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.detectErrors', detectErrors));
@@ -75,15 +72,15 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeWorkspaceFolders(() => picker.refresh())
   );
 
-  const shown = context.globalState.get<boolean>('aicodebrdige.welcome.v3');
+  const shown = context.globalState.get<boolean>('aicodebrdige.welcome.v4');
   if (!shown) {
     vscode.window.showInformationMessage(
-      '👋 AICodeBridge v0.0.3 — Send to AI, Error Detection & Chat History!',
-      'Try Send to AI'
+      '👋 AICodeBridge v0.0.4 — Ask Copilot now works directly inside VS Code!',
+      'Try Ask Copilot'
     ).then(a => {
-      if (a === 'Try Send to AI') vscode.commands.executeCommand('aicodebrdige.sendToAI');
+      if (a === 'Try Ask Copilot') vscode.commands.executeCommand('aicodebrdige.askCopilot');
     });
-    context.globalState.update('aicodebrdige.welcome.v3', true);
+    context.globalState.update('aicodebrdige.welcome.v4', true);
   }
 }
 
