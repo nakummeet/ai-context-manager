@@ -120,7 +120,7 @@ export async function detectErrors(): Promise<void> {
       );
 
       if (action === 'Send to AI') {
-        vscode.commands.executeCommand('aicodebrdige.sendToAI');
+        vscode.commands.executeCommand('aicodebrdige.askCopilot');
       }
     }
   );

@@ -1,10 +1,6 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { scanWorkspace } from '../utils/folderScanner';
-import { detectTechStack, getProjectName } from '../utils/techDetector';
-import { getGitHistory, hasGitRepo } from '../utils/gitHelper';
-import { buildMarkdown } from '../utils/markdownBuilder';
 import { flashStatusBar } from '../statusBar';
 
 // ─── Error section helpers ────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 # aibridge — AICodeBridge
-> 5/17/2026, 10:40:59 PM | 📄 Full
+> 5/18/2026, 10:45:05 PM | 📄 Full
 
 ---
 
@@ -18,13 +18,11 @@
 
 ## 📎 Code
 
-### src/commands/askCopilot.ts _(470 lines)_
+### src/commands/askCopilot.ts _(77 lines)_
 ```typescript
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
-
-let panel: vscode.WebviewPanel | undefined;
+import * as fs from 'fs';
 
 export async function askCopilot(context: vscode.ExtensionContext): Promise<void> {
   // 1. Check workspace
@@ -54,510 +52,49 @@ export async function askCopilot(context: vscode.ExtensionContext): Promise<void
     }
   }
 
-  // 3. Read context
-  let contextContent: string;
+  // 3. Check Copilot Chat
+  const copilotChatAvailable = vscode.extensions.getExtension('GitHub.copilot-chat');
+  if (!copilotChatAvailable) {
+    const action = await vscode.window.showWarningMessage(
+      'GitHub Copilot Chat is not installed.',
+      'Install Copilot Chat'
+    );
+    if (action === 'Install Copilot Chat') {
+      vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
+    }
+    return;
+  }
+
   try {
-    contextContent = fs.readFileSync(filePath, 'utf-8');
+    const fileUri = vscode.Uri.file(filePath);
+
+    // Try official chat attach API first (VS Code 1.90+)
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.open', {
+        attachFiles: [fileUri],
+      });
+      return;
+    } catch { /* try next */ }
+
+    // Try with query using #file mention
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.open', {
+        query: `#file:${fileName} `,
+        isPartialQuery: true,
+      });
+      return;
+    } catch { /* try next */ }
+
+    // Final fallback — open file in editor + open chat
+    const doc = await vscode.workspace.openTextDocument(fileUri);
+    await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await vscode.commands.executeCommand('workbench.action.chat.open');
+
   } catch (err) {
-    vscode.window.showErrorMessage(`AICodeBridge: Could not read ${fileName} — ${String(err)}`);
-    return;
-  }
-
-  // 4. If panel already exists, just reveal and reload context
-  if (panel) {
-    panel.reveal(vscode.ViewColumn.Beside);
-    panel.webview.postMessage({ command: 'loadContext', context: contextContent, fileName });
-    return;
-  }
-
-  // 5. Create panel
-  panel = vscode.window.createWebviewPanel(
-    'aicodebridge-copilot',
-    '🤖 Ask Copilot',
-    vscode.ViewColumn.Beside,
-    { enableScripts: true, retainContextWhenHidden: true }
-  );
-
-  panel.webview.html = getHtml();
-
-  // 6. Handle messages from webview
-  panel.webview.onDidReceiveMessage(async (msg) => {
-    switch (msg.command) {
-      case 'ready':
-        panel!.webview.postMessage({ command: 'loadContext', context: contextContent, fileName });
-        break;
-
-      case 'ask':
-        await handleAsk(msg.question, contextContent, panel!);
-        break;
-
-      case 'refreshContext':
-        try {
-          contextContent = fs.readFileSync(filePath, 'utf-8');
-          panel!.webview.postMessage({ command: 'loadContext', context: contextContent, fileName });
-        } catch {
-          panel!.webview.postMessage({ command: 'error', text: 'Could not refresh context file.' });
-        }
-        break;
-    }
-  });
-
-  panel.onDidDispose(() => { panel = undefined; });
-}
-
-async function handleAsk(
-  question: string,
-  contextContent: string,
-  panel: vscode.WebviewPanel
-): Promise<void> {
-  if (!question?.trim()) { return; }
-
-  // Find Copilot model
-  let models: vscode.LanguageModelChat[] = [];
-  try {
-    models = await vscode.lm.selectChatModels({ vendor: 'copilot', family: 'gpt-4o' });
-    if (!models.length) {
-      models = await vscode.lm.selectChatModels({ vendor: 'copilot' });
-    }
-  } catch { /* fall through */ }
-
-  if (!models.length) {
-    panel.webview.postMessage({
-      command: 'error',
-      text: 'GitHub Copilot is not available. Please install the GitHub Copilot extension and sign in.',
-    });
-    return;
-  }
-
-  const messages: vscode.LanguageModelChatMessage[] = [
-    vscode.LanguageModelChatMessage.User(
-      `You are a senior software engineer reviewing a codebase. ` +
-      `Below is the full project context in Markdown format.\n\n` +
-      `<project_context>\n${contextContent}\n</project_context>\n\n` +
-      `Answer the following question clearly and concisely, referencing specific files or code where relevant.\n\n` +
-      `Question: ${question}`
-    ),
-  ];
-
-  const cts = new vscode.CancellationTokenSource();
-  panel.webview.postMessage({ command: 'streamStart' });
-
-  try {
-    const response = await models[0].sendRequest(messages, {}, cts.token);
-    for await (const chunk of response.text) {
-      panel.webview.postMessage({ command: 'streamChunk', text: chunk });
-    }
-    panel.webview.postMessage({ command: 'streamEnd' });
-  } catch (err: any) {
-    let errMsg = `Error: ${String(err)}`;
-    if (err instanceof vscode.LanguageModelError) {
-      if (err.code === vscode.LanguageModelError.Blocked.name) {
-        errMsg = 'Copilot blocked this request. Try rephrasing your question.';
-      } else if (err.code === vscode.LanguageModelError.NoPermissions.name) {
-        errMsg = 'No permission to use Copilot. Please sign in to GitHub Copilot.';
-      }
-    }
-    panel.webview.postMessage({ command: 'error', text: errMsg });
-  } finally {
-    cts.dispose();
-  }
-}
-
-function getHtml(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ask Copilot</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--vscode-editor-background);
-      color: var(--vscode-foreground);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    /* ── Top bar ── */
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--vscode-widget-border, #333);
-      background: var(--vscode-sideBar-background, #252526);
-      flex-shrink: 0;
-    }
-    .topbar-left { display: flex; align-items: center; gap: 8px; }
-    .topbar-title { font-size: 13px; font-weight: 700; }
-    .badge {
-      font-size: 9px;
-      background: rgba(245,166,35,.15);
-      color: #f5a623;
-      border: 1px solid rgba(245,166,35,.3);
-      border-radius: 3px;
-      padding: 2px 6px;
-      font-weight: 700;
-    }
-    .refresh-btn {
-      background: none;
-      border: 1px solid var(--vscode-widget-border, #3c3c3c);
-      border-radius: 4px;
-      color: var(--vscode-descriptionForeground);
-      font-size: 10px;
-      padding: 3px 8px;
-      cursor: pointer;
-      transition: color .15s, border-color .15s;
-    }
-    .refresh-btn:hover { color: var(--vscode-foreground); border-color: var(--vscode-focusBorder, #007fd4); }
-
-    /* ── Context strip ── */
-    .ctx-strip {
-      flex-shrink: 0;
-      border-bottom: 1px solid var(--vscode-widget-border, #333);
-      background: var(--vscode-sideBar-background, #252526);
-    }
-    .ctx-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 14px;
-      cursor: pointer;
-      user-select: none;
-    }
-    .ctx-header-left { display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--vscode-descriptionForeground); }
-    .ctx-dot { width: 6px; height: 6px; border-radius: 50%; background: #3ecf8e; animation: pulse 2.5s ease-in-out infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
-    .file-tag { font-size: 9px; background: rgba(79,142,255,.12); color: #4f8eff; border: 1px solid rgba(79,142,255,.25); border-radius: 3px; padding: 1px 6px; font-weight: 600; }
-    .ctx-toggle { font-size: 9px; color: var(--vscode-descriptionForeground); }
-    .ctx-body { display: none; padding: 0 14px 10px; }
-    .ctx-body.open { display: block; }
-    .ctx-preview {
-      background: var(--vscode-input-background, #3c3c3c);
-      border: 1px solid var(--vscode-widget-border, #3c3c3c);
-      border-radius: 5px;
-      padding: 8px 10px;
-      font-size: 10px;
-      font-family: 'Cascadia Code', 'Fira Code', monospace;
-      color: var(--vscode-descriptionForeground);
-      max-height: 120px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      line-height: 1.5;
-    }
-
-    /* ── Chat area ── */
-    .chat-area {
-      flex: 1;
-      overflow-y: auto;
-      padding: 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-    }
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      flex: 1;
-      gap: 8px;
-      opacity: .45;
-      text-align: center;
-      padding: 40px 20px;
-    }
-    .empty-icon { font-size: 36px; }
-    .empty-text { font-size: 12px; color: var(--vscode-descriptionForeground); line-height: 1.6; }
-
-    .message { display: flex; flex-direction: column; gap: 4px; }
-    .msg-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
-    .message.user .msg-label { color: #4f8eff; }
-    .message.assistant .msg-label { color: #f5a623; }
-    .msg-bubble {
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-      line-height: 1.65;
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .message.user .msg-bubble { background: rgba(79,142,255,.1); border: 1px solid rgba(79,142,255,.2); }
-    .message.assistant .msg-bubble { background: var(--vscode-input-background, #3c3c3c); border: 1px solid var(--vscode-widget-border, #3c3c3c); }
-
-    .typing { display: flex; align-items: center; gap: 4px; padding: 4px 0; }
-    .typing-dot { width: 5px; height: 5px; border-radius: 50%; background: #f5a623; animation: bounce 1.2s ease-in-out infinite; }
-    .typing-dot:nth-child(2) { animation-delay: .2s; }
-    .typing-dot:nth-child(3) { animation-delay: .4s; }
-    @keyframes bounce { 0%,80%,100%{transform:translateY(0);opacity:.4} 40%{transform:translateY(-5px);opacity:1} }
-
-    .error-bubble {
-      padding: 10px 12px;
-      background: rgba(239,68,68,.1);
-      border: 1px solid rgba(239,68,68,.3);
-      border-radius: 8px;
-      color: #f87171;
-      font-size: 12px;
-      line-height: 1.5;
-    }
-
-    /* ── Input area ── */
-    .input-area {
-      flex-shrink: 0;
-      padding: 10px 14px 14px;
-      border-top: 1px solid var(--vscode-widget-border, #333);
-      background: var(--vscode-sideBar-background, #252526);
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-    textarea {
-      width: 100%;
-      min-height: 70px;
-      max-height: 160px;
-      resize: vertical;
-      background: var(--vscode-input-background, #3c3c3c);
-      border: 1px solid var(--vscode-widget-border, #3c3c3c);
-      border-radius: 6px;
-      color: var(--vscode-foreground);
-      font-family: inherit;
-      font-size: 12px;
-      line-height: 1.5;
-      padding: 9px 11px;
-      outline: none;
-      transition: border-color .15s;
-    }
-    textarea:focus { border-color: var(--vscode-focusBorder, #007fd4); }
-    textarea::placeholder { color: var(--vscode-input-placeholderForeground, #888); }
-
-    .input-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .hint { font-size: 9px; color: var(--vscode-descriptionForeground); opacity: .6; }
-    .ask-btn {
-      display: flex; align-items: center; gap: 6px;
-      padding: 7px 16px;
-      background: #f5a623;
-      border: none; border-radius: 5px;
-      color: #000;
-      font-family: inherit; font-size: 11px; font-weight: 700;
-      cursor: pointer;
-      transition: opacity .15s;
-      flex-shrink: 0;
-    }
-    .ask-btn:hover { opacity: .88; }
-    .ask-btn:active { opacity: .75; }
-    .ask-btn:disabled { opacity: .4; cursor: not-allowed; }
-  </style>
-</head>
-<body>
-
-  <div class="topbar">
-    <div class="topbar-left">
-      <span class="topbar-title">🤖 Ask Copilot</span>
-      <span class="badge">Copilot</span>
-    </div>
-    <button class="refresh-btn" onclick="refreshCtx()">🔄 Refresh Context</button>
-  </div>
-
-  <div class="ctx-strip">
-    <div class="ctx-header" onclick="toggleCtx()">
-      <div class="ctx-header-left">
-        <span class="ctx-dot"></span>
-        Context: <span class="file-tag" id="fileTag">loading…</span>
-      </div>
-      <span class="ctx-toggle" id="ctxToggle">▸ show</span>
-    </div>
-    <div class="ctx-body" id="ctxBody">
-      <pre class="ctx-preview" id="ctxPreview">Loading…</pre>
-    </div>
-  </div>
-
-  <div class="chat-area" id="chatArea">
-    <div class="empty-state" id="emptyState">
-      <span class="empty-icon">🤖</span>
-      <span class="empty-text">Your project context is loaded.<br>Ask anything about your codebase below.</span>
-    </div>
-  </div>
-
-  <div class="input-area">
-    <textarea id="qInput" placeholder="e.g. Why is the refresh function not working? How can I add dark mode?" onkeydown="handleKey(event)"></textarea>
-    <div class="input-row">
-      <span class="hint">Enter to send · Shift+Enter for new line</span>
-      <button class="ask-btn" id="askBtn" onclick="sendQ()">Ask ✦</button>
-    </div>
-  </div>
-
-  <script>
-    const vscode = acquireVsCodeApi();
-    let streaming = false;
-    let streamBubble = null;
-    let streamText = '';
-
-    window.addEventListener('load', () => vscode.postMessage({ command: 'ready' }));
-
-    window.addEventListener('message', ({ data: msg }) => {
-      if (msg.command === 'loadContext') {
-        document.getElementById('fileTag').textContent = msg.fileName;
-        document.getElementById('ctxPreview').textContent = msg.context;
-      }
-
-      if (msg.command === 'streamStart') {
-        streaming = true;
-        streamText = '';
-        document.getElementById('askBtn').disabled = true;
-        removeEmpty();
-
-        const el = document.createElement('div');
-        el.className = 'message assistant';
-        el.innerHTML = \`<span class="msg-label">Copilot</span>
-<div class="msg-bubble" id="sBubble"><div class="typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div>\`;
-        document.getElementById('chatArea').appendChild(el);
-        streamBubble = document.getElementById('sBubble');
-        scrollEnd();
-      }
-
-      if (msg.command === 'streamChunk') {
-        streamText += msg.text;
-        if (streamBubble) { streamBubble.textContent = streamText; scrollEnd(); }
-      }
-
-      if (msg.command === 'streamEnd') {
-        streaming = false;
-        document.getElementById('askBtn').disabled = false;
-        streamBubble = null;
-        scrollEnd();
-      }
-
-      if (msg.command === 'error') {
-        streaming = false;
-        document.getElementById('askBtn').disabled = false;
-        streamBubble = null;
-        removeEmpty();
-        const el = document.createElement('div');
-        el.className = 'error-bubble';
-        el.textContent = '⚠️ ' + msg.text;
-        document.getElementById('chatArea').appendChild(el);
-        scrollEnd();
-      }
-    });
-
-    function sendQ() {
-      if (streaming) { return; }
-      const inp = document.getElementById('qInput');
-      const q = inp.value.trim();
-      if (!q) { return; }
-
-      removeEmpty();
-      const el = document.createElement('div');
-      el.className = 'message user';
-      el.innerHTML = \`<span class="msg-label">You</span><div class="msg-bubble">\${esc(q)}</div>\`;
-      document.getElementById('chatArea').appendChild(el);
-      scrollEnd();
-
-      inp.value = '';
-      vscode.postMessage({ command: 'ask', question: q });
-    }
-
-    function handleKey(e) {
-      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendQ(); }
-    }
-
-    function toggleCtx() {
-      const open = document.getElementById('ctxBody').classList.toggle('open');
-      document.getElementById('ctxToggle').textContent = open ? '▾ hide' : '▸ show';
-    }
-
-    function refreshCtx() { vscode.postMessage({ command: 'refreshContext' }); }
-
-    function removeEmpty() {
-      const e = document.getElementById('emptyState');
-      if (e) { e.remove(); }
-    }
-
-    function scrollEnd() {
-      const a = document.getElementById('chatArea');
-      a.scrollTop = a.scrollHeight;
-    }
-
-    function esc(t) {
-      return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-    }
-  </script>
-</body>
-</html>`;
-}
-```
-
-### src/commands/chathistory.ts _(66 lines)_
-```typescript
-import * as vscode from 'vscode';
-
-export interface ChatEntry {
-  tool: string;
-  fileName: string;
-  timestamp: string;
-  preview: string;
-}
-
-let _context: vscode.ExtensionContext | null = null;
-const HISTORY_KEY = 'aicodebrdige.chatHistory';
-const MAX_HISTORY = 20;
-
-export function initChatHistory(context: vscode.ExtensionContext): void {
-  _context = context;
-}
-
-export function addChatHistory(entry: ChatEntry): void {
-  if (!_context) return;
-  const history = getChatHistory();
-  history.unshift(entry);
-  _context.globalState.update(HISTORY_KEY, history.slice(0, MAX_HISTORY));
-}
-
-export function getChatHistory(): ChatEntry[] {
-  if (!_context) return [];
-  return _context.globalState.get<ChatEntry[]>(HISTORY_KEY) ?? [];
-}
-
-export async function showChatHistory(): Promise<void> {
-  const history = getChatHistory();
-
-  if (!history.length) {
-    vscode.window.showInformationMessage('AICodeBridge: No history yet. Send context to an AI tool first!');
-    return;
-  }
-
-  const items: vscode.QuickPickItem[] = [
-    ...history.map(h => ({
-      label: `$(history) ${h.tool.toUpperCase()} — ${new Date(h.timestamp).toLocaleString()}`,
-      description: h.preview.slice(0, 60) + '...',
-      detail: `File: ${h.fileName}`,
-    })),
-    { label: '$(trash) Clear History', description: 'Remove all sessions' },
-  ];
-
-  const picked = await vscode.window.showQuickPick(items, {
-    title: 'AICodeBridge — Chat History',
-    placeHolder: 'Recent AI sessions',
-  });
-
-  if (!picked) return;
-
-  if (picked.label.includes('Clear History')) {
-    _context?.globalState.update(HISTORY_KEY, []);
-    vscode.window.showInformationMessage('AICodeBridge: History cleared.');
-    return;
-  }
-
-  const action = await vscode.window.showQuickPick(['Send to AI again', 'Cancel'], {
-    title: 'What would you like to do?',
-  });
-  if (action === 'Send to AI again') {
-    vscode.commands.executeCommand('aicodebrdige.sendToAI');
+    vscode.window.showErrorMessage(
+      `AICodeBridge: Failed to open Copilot Chat — ${String(err)}`
+    );
   }
 }
 ```
@@ -753,7 +290,7 @@ export async function detectErrors(): Promise<void> {
       );
 
       if (action === 'Send to AI') {
-        vscode.commands.executeCommand('aicodebrdige.sendToAI');
+        vscode.commands.executeCommand('aicodebrdige.askCopilot');
       }
     }
   );
@@ -940,15 +477,11 @@ export async function generateContext(
 }
 ```
 
-### src/commands/refreshContext.ts _(149 lines)_
+### src/commands/refreshContext.ts _(145 lines)_
 ```typescript
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { scanWorkspace } from '../utils/folderScanner';
-import { detectTechStack, getProjectName } from '../utils/techDetector';
-import { getGitHistory, hasGitRepo } from '../utils/gitHelper';
-import { buildMarkdown } from '../utils/markdownBuilder';
 import { flashStatusBar } from '../statusBar';
 
 // ─── Error section helpers ────────────────────────────────────────────────────
@@ -1407,7 +940,7 @@ export class FilePickerProvider implements vscode.TreeDataProvider<FileItem> {
 }
 ```
 
-### src/ui/SidebarPanelProvider.ts _(334 lines)_
+### src/ui/SidebarPanelProvider.ts _(332 lines)_
 ```typescript
 import * as vscode from 'vscode';
 
@@ -1720,9 +1253,7 @@ export class SidebarPanelProvider implements vscode.WebviewViewProvider {
     <button class="btn-sm" onclick="send('refresh')">
       🔄 Refresh
     </button>
-    <button class="btn-sm" onclick="send('detectErrors')">
-      🐛 Errors
-    </button>
+    
   </div>
 
   <!-- Status -->
@@ -2864,7 +2395,7 @@ export function getEnvKeys(rootPath: string): string[] {
 }
 ```
 
-### src/extension.ts _(90 lines)_
+### src/extension.ts _(108 lines)_
 ```typescript
 import * as vscode from 'vscode';
 import { generateContext } from './commands/generateContext';
@@ -2873,7 +2404,6 @@ import { refreshContext } from './commands/refreshContext';
 import { showDiff } from './commands/showDiff';
 import { askCopilot } from './commands/askCopilot';
 import { detectErrors } from './commands/detecterrors';
-import { showChatHistory, initChatHistory } from './commands/chathistory';
 import { FilePickerProvider, FileItem } from './providers/filePickerProvider';
 import { createStatusBar } from './statusBar';
 import { registerFileWatcher, disposeFileWatcher } from './utils/fileWatcher';
@@ -2881,74 +2411,93 @@ import { openAICodeBridgePanel } from './ui/webviewPanel';
 import { SidebarPanelProvider } from './ui/SidebarPanelProvider';
 
 export function activate(context: vscode.ExtensionContext): void {
-  console.log('AICodeBridge v0.0.4 activated.');
+  console.log('AICodeBridge v0.0.5 activated.');
 
-  initChatHistory(context);
-
+  // ── Core setup ──────────────────────────────────────────────────────────────
   const statusBar = createStatusBar(context);
   const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
   const picker = new FilePickerProvider(rootPath);
 
+  // ── UI providers ────────────────────────────────────────────────────────────
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider('aicodebridge-sidebar', new SidebarPanelProvider(context))
   );
-
   context.subscriptions.push(
     vscode.window.createTreeView('aicodebridge-files', { treeDataProvider: picker, showCollapseAll: true })
   );
 
-  // Generate modes
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.generateBasic', () => generateContext([], 'basic')));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.generateTree', () => generateContext([], 'tree')));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.generateFull', async () => {
-    const files = picker.getSelected();
-    if (!files.length) {
-      vscode.window.showWarningMessage('AICodeBridge: Select files for Full mode.');
-      return;
-    }
-    await generateContext(files, 'full');
-  }));
+  // ── Generate commands ───────────────────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.generateBasic', () => generateContext([], 'basic'))
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.generateTree', () => generateContext([], 'tree'))
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.generateFull', async () => {
+      const files = picker.getSelected();
+      if (!files.length) {
+        vscode.window.showWarningMessage('AICodeBridge: Select files for Full mode.');
+        return;
+      }
+      await generateContext(files, 'full');
+    })
+  );
 
-  // Actions
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.copy', copyContext));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.refresh', refreshContext));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.showDiff', showDiff));
+  // ── Action commands ─────────────────────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.copy', copyContext)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.refresh', refreshContext)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.showDiff', showDiff)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.askCopilot', askCopilot)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.detectErrors', detectErrors)
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.openPanel', () => openAICodeBridgePanel(context))
+  );
 
-  // Ask Copilot — replaces sendToAI
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.askCopilot', askCopilot));
+  // ── File picker commands ────────────────────────────────────────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.toggleFile', (item: FileItem) => picker.toggle(item))
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.selectAll', () => picker.selectAll())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.deselectAll', () => picker.deselectAll())
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand('aicodebrdige.refreshFilePicker', () => {
+      picker.refresh();
+      vscode.window.showInformationMessage('AICodeBridge: File list refreshed.');
+    })
+  );
 
-  // Error detection & chat history
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.detectErrors', detectErrors));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.chatHistory', showChatHistory));
-
-  // File picker commands
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.toggleFile', (item: FileItem) => {
-    picker.toggle(item);
-  }));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.selectAll', () => picker.selectAll()));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.deselectAll', () => picker.deselectAll()));
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.refreshFilePicker', () => {
-    picker.refresh();
-    vscode.window.showInformationMessage('AICodeBridge: File list refreshed.');
-  }));
-
-  context.subscriptions.push(vscode.commands.registerCommand('aicodebrdige.openPanel', () => openAICodeBridgePanel(context)));
-
+  // ── File watcher ────────────────────────────────────────────────────────────
   registerFileWatcher(context, statusBar, refreshContext);
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => picker.refresh())
   );
 
-  const shown = context.globalState.get<boolean>('aicodebrdige.welcome.v4');
+  // ── Welcome message (once per version) ─────────────────────────────────────
+  const shown = context.globalState.get<boolean>('aicodebrdige.welcome.v5');
   if (!shown) {
     vscode.window.showInformationMessage(
-      '👋 AICodeBridge v0.0.4 — Ask Copilot now works directly inside VS Code!',
+      '👋 AICodeBridge v0.0.5 — Ask Copilot now auto-attaches your context file!',
       'Try Ask Copilot'
     ).then(a => {
       if (a === 'Try Ask Copilot') vscode.commands.executeCommand('aicodebrdige.askCopilot');
     });
-    context.globalState.update('aicodebrdige.welcome.v4', true);
+    context.globalState.update('aicodebrdige.welcome.v5', true);
   }
 }
 
@@ -3007,6 +2556,10 @@ export function flashStatusBar(text: string, tooltip: string, durationMs = 3000)
 
 > ⚠️ `aibridge-0.0.3.vsix` — too large
 
+> ⚠️ `aibridge-0.0.4.vsix` — too large
+
+> ⚠️ `aibridge-0.0.5.vsix` — too large
+
 ### LICENSE _(11 lines)_
 ```
 Copyright (c) 2026 Nakum Meet. All Rights Reserved.
@@ -3022,15 +2575,15 @@ modify, or distribute it.
 For permissions, contact: nakummeet3570@gmail.com
 ```
 
-### package.json _(230 lines)_
+### package.json _(227 lines)_
 ```json
 {
   "name": "aibridge",
   "displayName": "AICodeBridge",
   "description": "Bridge your codebase to any AI tool instantly — ChatGPT, Claude, Gemini & more",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "nakummeet",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -3100,11 +2653,6 @@ For permissions, contact: nakummeet3570@gmail.com
         "icon": "$(bug)"
       },
       {
-        "command": "aicodebrdige.chatHistory",
-        "title": "🕐 AICodeBridge: Chat History",
-        "icon": "$(history)"
-      },
-      {
         "command": "aicodebrdige.refreshFilePicker",
         "title": "Refresh File List",
         "icon": "$(refresh)"
@@ -3167,10 +2715,12 @@ For permissions, contact: nakummeet3570@gmail.com
       "editor/title": [
         {
           "command": "aicodebrdige.askCopilot",
+          "when": "resourceScheme == file",
           "group": "navigation@1"
         },
         {
           "command": "aicodebrdige.detectErrors",
+          "when": "resourceScheme == file",
           "group": "navigation@2"
         }
       ]
@@ -3256,14 +2806,14 @@ For permissions, contact: nakummeet3570@gmail.com
 }
 ```
 
-### README.md _(133 lines)_
+### README.md _(127 lines)_
 ```markdown
 # AICodeBridge
 
 > Bridge your codebase to any AI tool instantly — no more re-explaining your stack.
 
-[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nakummeet.aicodebrdige?label=VS%20Code%20Marketplace&color=007acc)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aicodebrdige)
-[![Downloads](https://img.shields.io/visual-studio-marketplace/d/nakummeet.aicodebrdige)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aicodebrdige)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/nakummeet.aibridge?label=VS%20Code%20Marketplace&color=007acc)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge)
+[![Downloads](https://img.shields.io/visual-studio-marketplace/d/nakummeet.aibridge)](https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge)
 [![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](./LICENSE)
 
 ---
@@ -3272,19 +2822,15 @@ For permissions, contact: nakummeet3570@gmail.com
 
 Every time you open ChatGPT, Claude, or Gemini to ask about your project, you spend the first few messages just explaining what it is. AICodeBridge fixes that.
 
-It analyzes your codebase and generates a clean, structured Markdown file — tech stack, project structure, key files, git history — everything an AI needs to understand your project instantly. One click, then paste and go.
+It analyzes your codebase and generates a clean, structured Markdown file — tech stack, project structure, key files, git history — everything an AI needs to understand your project instantly. One click, then ask your question.
 
-Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and any other AI tool.
+Works with **GitHub Copilot** (built-in), **ChatGPT**, **Claude**, **Gemini**, and any other AI tool via clipboard.
 
 ---
-
-## Demo
 
 ![AICodeBridge Demo](images/demo.gif)
 
-
 ---
-
 ## Features
 
 ### Three Generation Modes
@@ -3294,6 +2840,12 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 | ⚡ **Basic** | Overview, structure, git history | Quick questions, debugging |
 | 🌳 **Tree** | Full file tree with architecture | "Help me redesign this" |
 | 📄 **Full Code** | Complete file contents (you pick files) | Deep code review, refactoring |
+
+### Ask Copilot (Built-in)
+- Opens GitHub Copilot Chat directly inside VS Code
+- Auto-attaches your context file — just type your question and hit Enter
+- If Copilot Chat isn't installed, prompts you to install it from the marketplace
+- No sign-in handling needed — Copilot manages its own auth flow
 
 ### Smart Project Analysis
 - Auto-detects tech stack from `package.json`, config files, and file extensions
@@ -3305,10 +2857,9 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 - Falls back to `tsc --noEmit` for TypeScript projects
 - Appends a formatted error table directly to your context file
 
-### Send to AI
-- Opens ChatGPT or Claude with your context pre-loaded in the URL
-- For Gemini: opens the browser and copies context to clipboard automatically
-- Full context always on clipboard as a fallback
+### Copy Context
+- Copies your full context to clipboard with `My question:` ready at the end
+- Paste into ChatGPT, Claude, Gemini, or any AI tool
 
 ### File Picker
 - Check/uncheck individual files or entire folders for Full Code mode
@@ -3318,10 +2869,6 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 - Optionally regenerates your context file on every save
 - Error section always stays fresh — updates after every file save regardless
 
-### Chat History
-- Remembers the last 20 AI sessions (tool used, file, timestamp, preview)
-- Re-send any previous context in one click
-
 ---
 
 ## Installation
@@ -3329,10 +2876,10 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 **From the VS Code Marketplace:**
 
 1. Open VS Code
-2. search `AICodeBridge` in the Extensions sidebar.
-3. click on download button
+2. Search `AICodeBridge` in the Extensions sidebar
+3. Click Install
 
-**Or search** MarketPlace - https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge
+**Or visit:** https://marketplace.visualstudio.com/items?itemName=nakummeet.aibridge
 
 ---
 
@@ -3341,8 +2888,8 @@ Works with **ChatGPT**, **Claude**, **Gemini**, **Grok**, **Perplexity**, and an
 1. Open your project folder in VS Code
 2. Click the **AICodeBridge icon** in the Activity Bar (left sidebar)
 3. Choose a generation mode — start with **⚡ Basic**
-4. Click **🚀 Send to AI** and pick your tool
-5. Your context is copied to clipboard and the browser opens — just type your question
+4. Click **🤖 Ask Copilot** to open Copilot Chat with your context attached
+5. Type your question and press Enter
 
 ---
 
@@ -3366,31 +2913,28 @@ All settings are under `aicodebrdige.*` in VS Code settings:
 
 ## Commands
 
-All commands are available from the Command Palette (`Ctrl+Shift+P`):
-
 | Command | Description |
 |---------|-------------|
 | `AICodeBridge: Ask AI (Quick Context)` | Generate Basic mode context |
 | `AICodeBridge: Ask AI (Project Structure)` | Generate Tree mode context |
 | `AICodeBridge: Ask AI (Full Codebase)` | Generate Full Code mode (uses selected files) |
-| `AICodeBridge: Send to AI` | Open context in ChatGPT, Claude, or Gemini |
-| `AICodeBridge: Detect Errors` | Scan and append errors to context file |
-| `AICodeBridge: Chat History` | View and re-send recent AI sessions |
-| `AICodeBridge: Refresh Context` | Regenerate context file manually |
+| `AICodeBridge: Ask Copilot` | Open Copilot Chat with context attached |
 | `AICodeBridge: Copy Context` | Copy context to clipboard |
+| `AICodeBridge: Detect Errors` | Scan and append errors to context file |
+| `AICodeBridge: Refresh Context` | Regenerate context file manually |
+
 
 ---
 
-
 ## Author
 
-**Meet Nakum** <br> Computer Engineering Student, Flutter & MERN stack developer 
+**Meet Nakum** <br> Computer Engineering Student, Flutter & MERN stack developer
 
 ---
 
 ## License
 
-[MIT](./LICENSE)
+[Proprietary](./LICENSE)
 ```
 
 ### tsconfig.json _(18 lines)_
@@ -3416,11 +2960,11 @@ All commands are available from the Command Palette (`Ctrl+Shift+P`):
 
 ## 🕐 Git
 
-- `a54c5fa` 3 days ago — update readme.md
-- `ac0dc0f` 3 days ago — add send to ai button and add error detection
-- `2e6719c` 11 days ago — change name AICodeBridge
-- `acdeb5a` 11 days ago — test
-- `83a989f` 12 days ago — change ui and chage name aibridge to contextflow
+- `c7eabfe` 23 hours ago — add copilot
+- `a54c5fa` 4 days ago — update readme.md
+- `ac0dc0f` 4 days ago — add send to ai button and add error detection
+- `2e6719c` 12 days ago — change name AICodeBridge
+- `acdeb5a` 12 days ago — test
 
 ---
 _AICodeBridge — 📄 Full_
@@ -3429,13 +2973,6 @@ _AICodeBridge — 📄 Full_
 
 ## 🐛 Errors
 
-> Auto-scanned: 5/17/2026, 11:36:42 PM
+> Auto-scanned: 5/18/2026, 10:45:05 PM
 
-**2 issue(s) found:**
-
-| File | Line | Type | Message |
-|------|------|------|---------|
-| `package.json` | 112 | ⚠️ | Missing property "icon". |
-| `package.json` | 117 | ⚠️ | Missing property "icon". |
-
-> Paste this file into ChatGPT/Claude to fix errors.
+✅ No errors found!

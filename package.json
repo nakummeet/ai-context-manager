@@ -2,9 +2,9 @@
   "name": "aibridge",
   "displayName": "AICodeBridge",
   "description": "Bridge your codebase to any AI tool instantly — ChatGPT, Claude, Gemini & more",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "nakummeet",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "vscode": "^1.90.0"
   },
@@ -74,11 +74,6 @@
         "icon": "$(bug)"
       },
       {
-        "command": "aicodebrdige.chatHistory",
-        "title": "🕐 AICodeBridge: Chat History",
-        "icon": "$(history)"
-      },
-      {
         "command": "aicodebrdige.refreshFilePicker",
         "title": "Refresh File List",
         "icon": "$(refresh)"
@@ -141,10 +136,12 @@
       "editor/title": [
         {
           "command": "aicodebrdige.askCopilot",
+          "when": "resourceScheme == file",
           "group": "navigation@1"
         },
         {
           "command": "aicodebrdige.detectErrors",
+          "when": "resourceScheme == file",
           "group": "navigation@2"
         }
       ]

@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
-import * as fs from 'fs';
 import * as path from 'path';
+import * as fs from 'fs';
 
 export async function askCopilot(context: vscode.ExtensionContext): Promise<void> {
   // 1. Check workspace
@@ -30,42 +30,9 @@ export async function askCopilot(context: vscode.ExtensionContext): Promise<void
     }
   }
 
-  // 3. Read context file
-  let contextContent: string;
-  try {
-    contextContent = fs.readFileSync(filePath, 'utf-8');
-  } catch (err) {
-    vscode.window.showErrorMessage(`AICodeBridge: Could not read ${fileName} — ${String(err)}`);
-    return;
-  }
-
-  // 4. Build message — ends with "My question: " so user just types after
-  const fullMessage = `Here is my project context:\n\n${contextContent}\n\n---\n\nMy question: `;
-
-  // 5. Copy to clipboard
-  await vscode.env.clipboard.writeText(fullMessage);
-
+  // 3. Check Copilot Chat
   const copilotChatAvailable = vscode.extensions.getExtension('GitHub.copilot-chat');
-
-  if (copilotChatAvailable) {
-    try {
-      // Open Copilot Chat panel
-      await vscode.commands.executeCommand('workbench.action.chat.open');
-
-      // Wait for panel to fully open and input to be focused
-      await new Promise(resolve => setTimeout(resolve, 600));
-
-      // Trigger paste — this pastes the context into the chat input automatically
-      await vscode.commands.executeCommand('editor.action.clipboardPasteAction');
-
-      // Small delay then try the workbench paste as fallback
-      await new Promise(resolve => setTimeout(resolve, 200));
-      await vscode.commands.executeCommand('workbench.action.terminal.paste');
-
-    } catch {
-      // Silent — clipboard already has content as backup
-    }
-  } else {
+  if (!copilotChatAvailable) {
     const action = await vscode.window.showWarningMessage(
       'GitHub Copilot Chat is not installed.',
       'Install Copilot Chat'
@@ -73,5 +40,38 @@ export async function askCopilot(context: vscode.ExtensionContext): Promise<void
     if (action === 'Install Copilot Chat') {
       vscode.commands.executeCommand('workbench.extensions.search', 'GitHub.copilot-chat');
     }
+    return;
+  }
+
+  try {
+    const fileUri = vscode.Uri.file(filePath);
+
+    // Try official chat attach API first (VS Code 1.90+)
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.open', {
+        attachFiles: [fileUri],
+      });
+      return;
+    } catch { /* try next */ }
+
+    // Try with query using #file mention
+    try {
+      await vscode.commands.executeCommand('workbench.action.chat.open', {
+        query: `#file:${fileName} `,
+        isPartialQuery: true,
+      });
+      return;
+    } catch { /* try next */ }
+
+    // Final fallback — open file in editor + open chat
+    const doc = await vscode.workspace.openTextDocument(fileUri);
+    await vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await vscode.commands.executeCommand('workbench.action.chat.open');
+
+  } catch (err) {
+    vscode.window.showErrorMessage(
+      `AICodeBridge: Failed to open Copilot Chat — ${String(err)}`
+    );
   }
 }

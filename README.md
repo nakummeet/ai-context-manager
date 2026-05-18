@@ -112,7 +112,7 @@ All settings are under `aicodebrdige.*` in VS Code settings:
 | `AICodeBridge: Copy Context` | Copy context to clipboard |
 | `AICodeBridge: Detect Errors` | Scan and append errors to context file |
 | `AICodeBridge: Refresh Context` | Regenerate context file manually |
-| `AICodeBridge: Chat History` | View recent AI sessions |
+
 
 ---
 
